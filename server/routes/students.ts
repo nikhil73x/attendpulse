@@ -27,7 +27,7 @@ studentsRouter.post('/', async (req: Request, res: Response) => {
 });
 
 studentsRouter.put('/:id', async (req: Request, res: Response) => {
-  const updated = await db.updateStudent(req.params.id, req.body);
+  const updated = await db.updateStudent(String(req.params.id), req.body);
   if (!updated) return res.status(404).json({ error: 'Student not found' });
   res.json({ success: true, data: updated });
 });
@@ -35,7 +35,7 @@ studentsRouter.put('/:id', async (req: Request, res: Response) => {
 studentsRouter.put('/:id/status', async (req: Request, res: Response) => {
   const { status, notes } = req.body;
   if (!['present', 'absent', 'late', 'excused'].includes(status)) return res.status(400).json({ error: 'Invalid attendance status' });
-  const updated = await db.updateStudent(req.params.id, { status, ...(notes !== undefined ? { notes } : {}) });
+  const updated = await db.updateStudent(String(req.params.id), { status, ...(notes !== undefined ? { notes } : {}) });
   if (!updated) return res.status(404).json({ error: 'Student not found' });
   res.json({ success: true, data: updated });
 });

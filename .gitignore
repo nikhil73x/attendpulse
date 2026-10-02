@@ -43,3 +43,5 @@ server/data/database.json
 server/data/*.tmp
 data/*.tmp
 coverage
+
+.vercel

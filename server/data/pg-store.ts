@@ -332,7 +332,7 @@ export class PostgresStore {
         values.push(partial[key as keyof UserAccount]);
       }
     }
-    if (fields.length === 0) return this.getUserByEmail(email) ?? null;
+    if (fields.length === 0) return (await this.getUserByEmail(email)) ?? null;
     values.push(email);
     await this.q(`UPDATE ap_users SET ${fields.join(',')} WHERE LOWER(email)=LOWER($${i})`, values);
     return (await this.getUserByEmail(email)) ?? null;
@@ -421,7 +421,7 @@ export class PostgresStore {
         values.push(partial[key as keyof StudentItem]);
       }
     }
-    if (fields.length === 0) return this.getStudentById(id) ?? null;
+    if (fields.length === 0) return (await this.getStudentById(id)) ?? null;
     values.push(id);
     await this.q(`UPDATE ap_students SET ${fields.join(',')} WHERE id=$${i}`, values);
     return (await this.getStudentById(id)) ?? null;

@@ -20,13 +20,13 @@ timetableRouter.post('/slot', async (req: Request, res: Response) => {
 });
 
 timetableRouter.put('/slot/:id', async (req: Request, res: Response) => {
-  const updated = await db.updateTimetableSlot(req.params.id, req.body);
+  const updated = await db.updateTimetableSlot(String(req.params.id), req.body);
   if (!updated) return res.status(404).json({ error: 'Timetable slot not found' });
   res.json({ success: true, data: updated });
 });
 
 timetableRouter.delete('/slot/:id', async (req: Request, res: Response) => {
-  const success = await db.deleteTimetableSlot(req.params.id);
+  const success = await db.deleteTimetableSlot(String(req.params.id));
   if (!success) return res.status(404).json({ error: 'Timetable slot not found' });
   res.json({ success: true, message: 'Slot deleted successfully' });
 });

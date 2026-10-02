@@ -26,13 +26,13 @@ notificationsRouter.post('/', async (req: Request, res: Response) => {
 });
 
 notificationsRouter.put('/:id/read', async (req: Request, res: Response) => {
-  const updated = await db.markNotificationAsRead(req.params.id);
+  const updated = await db.markNotificationAsRead(String(req.params.id));
   if (!updated) return res.status(404).json({ error: 'Notification not found' });
   res.json({ success: true, data: updated });
 });
 
 notificationsRouter.delete('/:id', async (req: Request, res: Response) => {
-  const success = await db.deleteNotification(req.params.id);
+  const success = await db.deleteNotification(String(req.params.id));
   if (!success) return res.status(404).json({ error: 'Notification not found' });
   res.json({ success: true, message: 'Notification removed' });
 });
