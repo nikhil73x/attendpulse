@@ -3,49 +3,30 @@ import { db } from '../data/store';
 
 export const authRouter = Router();
 
-// Login endpoint
-authRouter.post('/login', (req: Request, res: Response) => {
+// Login
+authRouter.post('/login', async (req: Request, res: Response) => {
   const { email, password } = req.body;
-
-  if (!email) {
-    return res.status(400).json({ error: 'Email address is required' });
-  }
+  if (!email) return res.status(400).json({ error: 'Email address is required' });
 
   let cleanEmail = email.trim().toLowerCase();
-  if (cleanEmail === 'prof' || cleanEmail === 'professor' || cleanEmail === 'faculty' || cleanEmail === 'teacher' || cleanEmail === 'yadav') {
-    cleanEmail = 'prof.yadav@school.edu';
-  } else if (cleanEmail === 'student' || cleanEmail === 'nikhil') {
-    cleanEmail = 'nikhil.yadav@student.edu';
-  }
+  if (['prof', 'professor', 'faculty', 'teacher', 'yadav'].includes(cleanEmail)) cleanEmail = 'prof.yadav@school.edu';
+  else if (['student', 'nikhil'].includes(cleanEmail)) cleanEmail = 'nikhil.yadav@student.edu';
 
-  const user = db.getUserByEmail(cleanEmail);
+  const user = await db.getUserByEmail(cleanEmail);
 
-  // If known registered user
   if (user) {
     const validPasswords = [user.password, 'teacher123', 'faculty123', 'student123', 'demo1234', 'prof123', 'password', ''];
     if (password && !validPasswords.includes(password)) {
       return res.status(401).json({ error: 'Invalid password credentials' });
     }
-
     return res.json({
       success: true,
       token: `sess_${user.id}_${Date.now()}`,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        rollNo: user.rollNo,
-        department: user.department,
-        semester: user.semester,
-        institution: user.institution,
-        minAttendanceGoal: user.minAttendanceGoal,
-        designation: user.designation,
-      },
+      user: { id: user.id, email: user.email, name: user.name, role: user.role, rollNo: user.rollNo, department: user.department, semester: user.semester, institution: user.institution, minAttendanceGoal: user.minAttendanceGoal, designation: user.designation },
     });
   }
 
-  // Dynamic / Pattern-based school email login
+  // Dynamic school email pattern — auto-register
   const isSchool = cleanEmail.includes('@school.edu') || cleanEmail.includes('@student.edu');
   if (isSchool || cleanEmail.includes('prof') || cleanEmail.includes('student')) {
     const isTeacher = cleanEmail.startsWith('prof.') || cleanEmail.includes('teacher') || cleanEmail.includes('@school.edu');
@@ -69,43 +50,27 @@ authRouter.post('/login', (req: Request, res: Response) => {
       designation: role === 'teacher' ? 'Associate Professor' : 'Student',
     };
 
-    return res.json({
-      success: true,
-      token: `sess_${newUser.id}_${Date.now()}`,
-      user: newUser,
-    });
+    // Persist new dynamic user
+    await db.addUser(newUser);
+
+    return res.json({ success: true, token: `sess_${newUser.id}_${Date.now()}`, user: newUser });
   }
 
   return res.status(401).json({ error: 'Account not recognized. Please use registered school credentials.' });
 });
 
 // Current user profile
-authRouter.get('/me', (req: Request, res: Response) => {
+authRouter.get('/me', async (req: Request, res: Response) => {
   const email = (req.query.email as string) || '';
-  if (!email) {
-    return res.status(400).json({ error: 'Email parameter required' });
-  }
+  if (!email) return res.status(400).json({ error: 'Email parameter required' });
 
-  const user = db.getUserByEmail(email);
-  if (!user) {
-    return res.status(404).json({ error: 'User not found' });
-  }
+  const user = await db.getUserByEmail(email);
+  if (!user) return res.status(404).json({ error: 'User not found' });
 
-  res.json({
-    id: user.id,
-    email: user.email,
-    name: user.name,
-    role: user.role,
-    rollNo: user.rollNo,
-    department: user.department,
-    semester: user.semester,
-    institution: user.institution,
-    minAttendanceGoal: user.minAttendanceGoal,
-    designation: user.designation,
-  });
+  res.json({ id: user.id, email: user.email, name: user.name, role: user.role, rollNo: user.rollNo, department: user.department, semester: user.semester, institution: user.institution, minAttendanceGoal: user.minAttendanceGoal, designation: user.designation });
 });
 
-// Logout endpoint
+// Logout
 authRouter.post('/logout', (_req: Request, res: Response) => {
   res.json({ success: true, message: 'Signed out successfully' });
 });
