@@ -1,0 +1,48 @@
+{
+  "name": "attendpulse",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "start": "tsx server/index.ts",
+    "server": "tsx server/index.ts",
+    "server:prod": "tsx server/index.ts",
+    "dev:all": "concurrently -k -p \"[{name}]\" -n \"APP,API\" -c \"cyan.bold,green.bold\" \"vite\" \"tsx watch server/index.ts\"",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "db:migrate": "tsx database/migrate.ts",
+    "db:seed": "tsx database/seed.ts"
+  },
+  "dependencies": {
+    "@types/pg": "^8.23.1",
+    "clsx": "^2.1.1",
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.5",
+    "express": "^5.2.1",
+    "framer-motion": "^12.4.7",
+    "lucide-react": "^1.16.0",
+    "multer": "^2.4.0",
+    "pg": "^8.23.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-icons": "^5.7.0",
+    "tailwind-merge": "^3.0.2",
+    "tsx": "^4.23.15"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/multer": "^2.3.0",
+    "@types/node": "^22.13.4",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^10.0.5",
+    "postcss": "^8.5.2",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.3",
+    "vite": "^6.1.0"
+  }
+}

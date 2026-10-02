@@ -1,0 +1,177 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 238.7 83.5% 66.7%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 238.7 83.5% 66.7%;
+  }
+
+  .dark {
+    --background: 224 71% 4%;
+    --foreground: 210 40% 98%;
+
+    --card: 224 71% 4%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 224 71% 4%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.8 100% 47.3%;
+  }
+
+  * {
+    @apply border-border;
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: inherit;
+  }
+}
+
+/* Vignette overlay styling */
+.vignette-overlay {
+  background: radial-gradient(
+    circle at center,
+    rgba(0, 0, 0, 0.25) 0%,
+    rgba(0, 0, 0, 0.65) 60%,
+    rgba(0, 0, 0, 0.92) 100%
+  );
+}
+
+/* Glass card fine inner reflection */
+.glass-panel {
+  background: rgba(10, 12, 16, 0.5);
+  backdrop-filter: blur(28px) saturate(140%);
+  -webkit-backdrop-filter: blur(28px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 
+    0 30px 60px -12px rgba(0, 0, 0, 0.8),
+    0 18px 36px -18px rgba(0, 0, 0, 0.6),
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 0 20px 0 rgba(255, 255, 255, 0.02);
+}
+
+/* Sleek input styling - unified dark background across both inputs */
+.glass-input {
+  background: rgba(14, 18, 27, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 1rem; /* rounded-2xl */
+  overflow: hidden;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  isolation: isolate; /* Creates dedicated stacking context so children z-index is strictly honored */
+}
+
+.glass-input:focus-within,
+.glass-input:focus {
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.15), 0 0 16px -4px rgba(255, 255, 255, 0.1);
+}
+
+/* Dedicated hardware-accelerated icon layer that CANNOT be occluded by browser autofill or input layers */
+.login-input-icon {
+  position: absolute;
+  z-index: 50 !important;
+  pointer-events: none;
+  user-select: none;
+  transform: translateY(-50%) translateZ(0);
+  -webkit-transform: translateY(-50%) translateZ(0);
+  will-change: transform;
+}
+
+/* Disable native Windows / Edge password reveal and clear icons which conflict with custom eye button */
+input::-ms-reveal,
+input::-ms-clear {
+  display: none !important;
+}
+
+/* Override browser autofill (matches the exact input background so autofill doesn't change color or hide elements) */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active,
+input:autofill,
+input:autofill:hover,
+input:autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #0e121b inset !important;
+  box-shadow: 0 0 0 1000px #0e121b inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+  color: #ffffff !important;
+  caret-color: #ffffff !important;
+  border-radius: 1rem !important;
+  transition: background-color 500000s ease-in-out 0s !important;
+}
+
+/* Subtle glow for the primary button */
+.btn-primary-glow {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-primary-glow::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.2),
+    transparent
+  );
+  transition: 0.5s;
+}
+
+.btn-primary-glow:hover::after {
+  left: 100%;
+}
