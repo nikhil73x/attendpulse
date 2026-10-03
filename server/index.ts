@@ -44,6 +44,14 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Vercel serverless route normalization
+app.use((req, _res, next) => {
+  if (req.url.startsWith('/api/index')) {
+    req.url = req.url.replace(/^\/api\/index/, '/api') || '/api';
+  }
+  next();
+});
+
 // Request logging in development
 if (process.env.NODE_ENV !== 'production') {
   app.use((req, _res, next) => {

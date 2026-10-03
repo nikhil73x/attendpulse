@@ -9,7 +9,8 @@
     "server": "tsx server/index.ts",
     "server:prod": "tsx server/index.ts",
     "dev:all": "concurrently -k -p \"[{name}]\" -n \"APP,API\" -c \"cyan.bold,green.bold\" \"vite\" \"tsx watch server/index.ts\"",
-    "build": "tsc && vite build",
+    "build:api": "esbuild server/index.ts --bundle --platform=node --format=esm --outfile=api/index.js --packages=external",
+    "build": "tsc && vite build && npm run build:api",
     "preview": "vite preview",
     "db:migrate": "tsx database/migrate.ts",
     "db:seed": "tsx database/seed.ts"
@@ -40,6 +41,7 @@
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
     "concurrently": "^10.0.5",
+    "esbuild": "^0.25.0",
     "postcss": "^8.5.2",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.3",
