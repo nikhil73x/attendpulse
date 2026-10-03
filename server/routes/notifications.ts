@@ -4,10 +4,21 @@ import { db } from '../data/store';
 export const notificationsRouter = Router();
 
 notificationsRouter.get('/', async (req: Request, res: Response) => {
-  const { studentId } = req.query;
+  const { studentId, email, rollNo } = req.query;
   let notifications = await db.getNotifications();
-  if (studentId) {
-    notifications = notifications.filter(n => !n.target || n.target.scope === 'all' || n.target.studentIds?.includes(String(studentId)));
+  if (studentId || email || rollNo) {
+    const sId = studentId ? String(studentId).toLowerCase().trim() : undefined;
+    const sEmail = email ? String(email).toLowerCase().trim() : undefined;
+    const sRoll = rollNo ? String(rollNo).toLowerCase().trim() : undefined;
+
+    notifications = notifications.filter((n) => {
+      if (!n.target || n.target.scope === 'all') return true;
+      const target = n.target as any;
+      const matchId = sId && target.studentIds?.some((id: string) => id.toLowerCase().trim() === sId);
+      const matchEmail = sEmail && target.studentEmails?.some((e: string) => e?.toLowerCase().trim() === sEmail);
+      const matchRoll = sRoll && target.studentRollNos?.some((r: string) => r?.toLowerCase().trim() === sRoll);
+      return matchId || matchEmail || matchRoll;
+    });
   }
   res.json({ success: true, count: notifications.length, data: notifications });
 });
@@ -29,6 +40,11 @@ notificationsRouter.put('/:id/read', async (req: Request, res: Response) => {
   const updated = await db.markNotificationAsRead(String(req.params.id));
   if (!updated) return res.status(404).json({ error: 'Notification not found' });
   res.json({ success: true, data: updated });
+});
+
+notificationsRouter.delete('/', async (_req: Request, res: Response) => {
+  await db.clearNotifications();
+  res.json({ success: true, message: 'All notifications cleared' });
 });
 
 notificationsRouter.delete('/:id', async (req: Request, res: Response) => {

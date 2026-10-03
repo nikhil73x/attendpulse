@@ -74,8 +74,41 @@ export const NotificationsModule: React.FC<NotificationsModuleProps> = ({
 
   const [sendSuccessMessage, setSendSuccessMessage] = useState(false);
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
-  const filteredList = notifications.filter((n) =>
+  // Target filtering: teachers see all announcements, students only see broadcasts for all or specifically for them
+  const studentFilteredList = isTeacher
+    ? notifications
+    : notifications.filter((notif) => {
+        if (!notif.target || notif.target.scope === 'all') return true;
+        const target = notif.target as any;
+        const myEmail = currentUser?.email?.toLowerCase().trim();
+        const myRoll = currentUser?.rollNo?.toLowerCase().trim();
+        const myName = currentUser?.name?.toLowerCase().trim();
+
+        // 1. Direct match on studentEmails / studentRollNos / studentNames
+        const matchEmail = myEmail && target.studentEmails?.some((e: string) => e?.toLowerCase().trim() === myEmail);
+        const matchRoll = myRoll && target.studentRollNos?.some((r: string) => r?.toLowerCase().trim() === myRoll);
+        const matchName = myName && target.studentNames?.some((n: string) => n?.toLowerCase().trim() === myName);
+        if (matchEmail || matchRoll || matchName) return true;
+
+        // 2. Check if student's roster ID was targeted
+        const rosterStudent = students.find((s) =>
+          (myEmail && s.email?.toLowerCase().trim() === myEmail) ||
+          (myRoll && s.rollNo?.toLowerCase().trim() === myRoll) ||
+          (myName && s.name?.toLowerCase().trim() === myName)
+        );
+        if (rosterStudent && target.studentIds?.includes(rosterStudent.id)) {
+          return true;
+        }
+
+        // 3. Check direct studentIds match
+        if (myRoll && target.studentIds?.some((id: string) => id?.toLowerCase().trim() === myRoll)) return true;
+        if (myEmail && target.studentIds?.some((id: string) => id?.toLowerCase().trim() === myEmail)) return true;
+
+        return false;
+      });
+
+  const unreadCount = studentFilteredList.filter((n) => !n.read).length;
+  const filteredList = studentFilteredList.filter((n) =>
     filter === 'all' ? true : !n.read
   );
 
@@ -94,33 +127,35 @@ export const NotificationsModule: React.FC<NotificationsModuleProps> = ({
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    const newAttachments: NotificationAttachment[] = Array.from(files).map(
-      (file) => {
-        const sizeKb = (file.size / 1024).toFixed(1);
-        const sizeStr =
-          file.size > 1024 * 1024
-            ? `${(file.size / (1024 * 1024)).toFixed(1)} MB`
-            : `${sizeKb} KB`;
+    Array.from(files).forEach((file) => {
+      const sizeKb = (file.size / 1024).toFixed(1);
+      const sizeStr =
+        file.size > 1024 * 1024
+          ? `${(file.size / (1024 * 1024)).toFixed(1)} MB`
+          : `${sizeKb} KB`;
 
-        return {
-          name: file.name,
-          size: sizeStr,
-          url: URL.createObjectURL(file),
-          type: file.type || 'application/octet-stream',
-        };
-      }
-    );
+      // Read as Data URL so attached files persist and work across devices
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result as string;
+        setAttachments((prev) => [
+          ...prev,
+          {
+            name: file.name,
+            size: sizeStr,
+            url: dataUrl,
+            type: file.type || 'application/octet-stream',
+          },
+        ]);
+      };
+      reader.readAsDataURL(file);
+    });
 
-    setAttachments((prev) => [...prev, ...newAttachments]);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleRemoveAttachment = (index: number) => {
-    setAttachments((prev) => {
-      const target = prev[index];
-      if (target?.url) URL.revokeObjectURL(target.url);
-      return prev.filter((_, i) => i !== index);
-    });
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleAddLink = () => {
@@ -183,10 +218,18 @@ export const NotificationsModule: React.FC<NotificationsModuleProps> = ({
         studentIds:
           targetScope === 'selected'
             ? selectedStudentIds
-            : students.map((s) => s.id),
+            : undefined,
         studentNames:
           targetScope === 'selected'
             ? targetStudents.map((s) => s.name)
+            : undefined,
+        studentEmails:
+          targetScope === 'selected'
+            ? (targetStudents.map((s) => s.email?.toLowerCase().trim()).filter(Boolean) as string[])
+            : undefined,
+        studentRollNos:
+          targetScope === 'selected'
+            ? (targetStudents.map((s) => s.rollNo?.toLowerCase().trim()).filter(Boolean) as string[])
             : undefined,
       },
       attachments: attachments.length > 0 ? attachments : undefined,
@@ -335,7 +378,7 @@ export const NotificationsModule: React.FC<NotificationsModuleProps> = ({
                 : 'bg-slate-100 text-slate-600 hover:text-slate-900'
             }`}
           >
-            All ({notifications.length})
+            All ({studentFilteredList.length})
           </button>
           <button
             type="button"

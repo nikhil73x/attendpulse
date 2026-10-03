@@ -93,7 +93,13 @@ export interface NotificationItem {
   type: 'alert' | 'success' | 'info';
   read: boolean;
   sender?: { name: string; role: 'teacher' | 'system' | 'student'; email?: string };
-  target?: { scope: 'all' | 'selected'; studentIds?: string[]; studentNames?: string[] };
+  target?: {
+    scope: 'all' | 'selected';
+    studentIds?: string[];
+    studentNames?: string[];
+    studentEmails?: string[];
+    studentRollNos?: string[];
+  };
   attachments?: Array<{ name: string; size?: string; url: string; type?: string }>;
   links?: Array<{ title: string; url: string }>;
 }
@@ -227,7 +233,8 @@ class FileStore {
   // Notifications
   async getNotifications()                             { return this.data.notifications; }
   async addNotification(n: Omit<NotificationItem, 'id' | 'time' | 'read'>) {
-    const newN: NotificationItem = { ...n, id: `notif-${Date.now()}`, time: 'Just now', read: false };
+    const formattedTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const newN: NotificationItem = { ...n, id: `notif-${Date.now()}`, time: `Today, ${formattedTime}`, read: false };
     this.data.notifications.unshift(newN); this._save(); return newN;
   }
   async markNotificationAsRead(id: string) {
@@ -239,6 +246,11 @@ class FileStore {
     const idx = this.data.notifications.findIndex(n => n.id === id);
     if (idx === -1) return false;
     this.data.notifications.splice(idx, 1); this._save(); return true;
+  }
+  async clearNotifications() {
+    this.data.notifications = [];
+    this._save();
+    return true;
   }
 }
 

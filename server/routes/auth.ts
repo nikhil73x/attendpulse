@@ -5,7 +5,8 @@ export const authRouter = Router();
 
 // Login
 authRouter.post('/login', async (req: Request, res: Response) => {
-  const { email, password } = req.body;
+  const { email, password, role: reqRole } = req.body;
+  const explicitRole = reqRole as 'student' | 'teacher' | undefined;
   if (!email) return res.status(400).json({ error: 'Email address is required' });
 
   let cleanEmail = email.trim().toLowerCase();
@@ -42,8 +43,6 @@ authRouter.post('/login', async (req: Request, res: Response) => {
     });
   }
 
-  const explicitRole = req.body.role as 'student' | 'teacher' | undefined;
-  
   let role: 'student' | 'teacher' = 'student';
   let name = '';
   let rollNo = '';

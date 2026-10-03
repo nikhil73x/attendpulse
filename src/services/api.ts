@@ -206,6 +206,22 @@ export const api = {
     return res.data;
   },
 
+  async deleteNotification(id: string) {
+    const res = await fetchJson<{ success: boolean; message: string }>(
+      `${API_BASE}/notifications/${id}`,
+      { method: 'DELETE' }
+    );
+    return res;
+  },
+
+  async clearNotifications() {
+    const res = await fetchJson<{ success: boolean; message: string }>(
+      `${API_BASE}/notifications`,
+      { method: 'DELETE' }
+    );
+    return res;
+  },
+
   // Profile
   async updateProfile(email: string, updates: Partial<UserProfile>) {
     const res = await fetchJson<{ success: boolean; data: UserProfile }>(`${API_BASE}/profile`, {

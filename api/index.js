@@ -495,7 +495,8 @@ var PostgresStore = class {
   }
   async addNotification(notification) {
     const id = `notif-${Date.now()}`;
-    const time = "Just now";
+    const formattedTime = (/* @__PURE__ */ new Date()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const time = `Today, ${formattedTime}`;
     await this.q(
       `INSERT INTO ap_notifications (id,title,message,time,type,read,sender,target,attachments,links)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
@@ -520,8 +521,12 @@ var PostgresStore = class {
     return rows[0] ? rowToNotification(rows[0]) : null;
   }
   async deleteNotification(id) {
-    const res = await this.sql.query("DELETE FROM ap_notifications WHERE id=$1", [id], { fullResults: true });
-    return (res.rowCount ?? 0) > 0;
+    await this.q("DELETE FROM ap_notifications WHERE id=$1", [id]);
+    return true;
+  }
+  async clearNotifications() {
+    await this.q("DELETE FROM ap_notifications");
+    return true;
   }
 };
 
@@ -702,7 +707,8 @@ var FileStore = class {
     return this.data.notifications;
   }
   async addNotification(n) {
-    const newN = { ...n, id: `notif-${Date.now()}`, time: "Just now", read: false };
+    const formattedTime = (/* @__PURE__ */ new Date()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const newN = { ...n, id: `notif-${Date.now()}`, time: `Today, ${formattedTime}`, read: false };
     this.data.notifications.unshift(newN);
     this._save();
     return newN;
@@ -721,6 +727,11 @@ var FileStore = class {
     this._save();
     return true;
   }
+  async clearNotifications() {
+    this.data.notifications = [];
+    this._save();
+    return true;
+  }
 };
 function createStore() {
   if (process.env.DATABASE_URL) {
@@ -736,7 +747,8 @@ var db = createStore();
 import { Router } from "express";
 var authRouter = Router();
 authRouter.post("/login", async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, role: reqRole } = req.body;
+  const explicitRole = reqRole;
   if (!email) return res.status(400).json({ error: "Email address is required" });
   let cleanEmail = email.trim().toLowerCase();
   if (["prof", "professor", "faculty", "teacher", "yadav"].includes(cleanEmail)) cleanEmail = "prof.yadav@school.edu";
@@ -764,7 +776,6 @@ authRouter.post("/login", async (req, res) => {
       user: { id: user.id, email: user.email, name: user.name, role: user.role, rollNo: user.rollNo, department: user.department, semester: user.semester, institution: user.institution, minAttendanceGoal: user.minAttendanceGoal, designation: user.designation }
     });
   }
-  const explicitRole = req.body.role;
   let role = "student";
   let name = "";
   let rollNo = "";
@@ -1201,10 +1212,20 @@ timetableRouter.get("/export-csv", async (_req, res) => {
 import { Router as Router6 } from "express";
 var notificationsRouter = Router6();
 notificationsRouter.get("/", async (req, res) => {
-  const { studentId } = req.query;
+  const { studentId, email, rollNo } = req.query;
   let notifications = await db.getNotifications();
-  if (studentId) {
-    notifications = notifications.filter((n) => !n.target || n.target.scope === "all" || n.target.studentIds?.includes(String(studentId)));
+  if (studentId || email || rollNo) {
+    const sId = studentId ? String(studentId).toLowerCase().trim() : void 0;
+    const sEmail = email ? String(email).toLowerCase().trim() : void 0;
+    const sRoll = rollNo ? String(rollNo).toLowerCase().trim() : void 0;
+    notifications = notifications.filter((n) => {
+      if (!n.target || n.target.scope === "all") return true;
+      const target = n.target;
+      const matchId = sId && target.studentIds?.some((id) => id.toLowerCase().trim() === sId);
+      const matchEmail = sEmail && target.studentEmails?.some((e) => e?.toLowerCase().trim() === sEmail);
+      const matchRoll = sRoll && target.studentRollNos?.some((r) => r?.toLowerCase().trim() === sRoll);
+      return matchId || matchEmail || matchRoll;
+    });
   }
   res.json({ success: true, count: notifications.length, data: notifications });
 });
@@ -1226,6 +1247,10 @@ notificationsRouter.put("/:id/read", async (req, res) => {
   const updated = await db.markNotificationAsRead(String(req.params.id));
   if (!updated) return res.status(404).json({ error: "Notification not found" });
   res.json({ success: true, data: updated });
+});
+notificationsRouter.delete("/", async (_req, res) => {
+  await db.clearNotifications();
+  res.json({ success: true, message: "All notifications cleared" });
 });
 notificationsRouter.delete("/:id", async (req, res) => {
   const success = await db.deleteNotification(String(req.params.id));

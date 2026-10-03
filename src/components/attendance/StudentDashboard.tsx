@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { SubjectAttendance, UserProfile, TimetableSlot } from '../../types/attendance';
+import { SubjectAttendance, UserProfile, TimetableSlot, AttendanceNotification } from '../../types/attendance';
 import {
   IoCheckmarkCircleOutline,
   IoTrendingUpOutline,
@@ -16,6 +16,7 @@ import {
   IoChevronForwardOutline,
   IoBarChartOutline,
   IoTimeOutline,
+  IoMegaphoneOutline,
 } from 'react-icons/io5';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AnimatedFlame } from '../ui/AnimatedFlame';
@@ -24,6 +25,8 @@ interface StudentDashboardProps {
   profile: UserProfile;
   subjects: SubjectAttendance[];
   timetable?: TimetableSlot[];
+  notifications?: AttendanceNotification[];
+  onNavigateToNotifications?: () => void;
   onNavigateToTimetable?: () => void;
   /** Intentionally unused by StudentDashboard — attendance is teacher-owned and read-only for students */
   onUpdateSubject: (subjectId: string, attendedDelta: number, totalDelta: number) => void;
@@ -397,10 +400,32 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
   profile,
   subjects,
   timetable = [],
+  notifications = [],
+  onNavigateToNotifications,
   onNavigateToTimetable,
   isDark,
   view = 'overview',
 }) => {
+  const [dismissedAnnouncementId, setDismissedAnnouncementId] = useState<string | null>(null);
+
+  const relevantAnnouncements = notifications.filter((notif) => {
+    if (!notif.target || notif.target.scope === 'all') return true;
+    const target = notif.target as any;
+    const myEmail = profile.email?.toLowerCase().trim();
+    const myRoll = profile.rollNo?.toLowerCase().trim();
+    const myName = profile.name?.toLowerCase().trim();
+
+    const matchEmail = myEmail && target.studentEmails?.some((e: string) => e?.toLowerCase().trim() === myEmail);
+    const matchRoll = myRoll && target.studentRollNos?.some((r: string) => r?.toLowerCase().trim() === myRoll);
+    const matchName = myName && target.studentNames?.some((n: string) => n?.toLowerCase().trim() === myName);
+    const matchId = (myRoll && target.studentIds?.some((id: string) => id?.toLowerCase().trim() === myRoll)) ||
+                    (myEmail && target.studentIds?.some((id: string) => id?.toLowerCase().trim() === myEmail));
+
+    return matchEmail || matchRoll || matchName || matchId;
+  });
+
+  const latestAnnouncement = relevantAnnouncements[0];
+
   const currentDayName = (() => {
     const d = new Date().toLocaleDateString('en-US', { weekday: 'long' });
     return ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].includes(d) ? d : 'Monday';
@@ -488,6 +513,64 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
   if (view === 'overview') {
     return (
       <div className="w-full max-w-5xl mx-auto space-y-6 animate-fade-in text-inherit">
+        {/* Faculty Announcement Banner if present */}
+        <AnimatePresence>
+          {latestAnnouncement && dismissedAnnouncementId !== latestAnnouncement.id && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className={`p-4 rounded-2xl border flex items-start justify-between gap-3 shadow-lg transition-all ${
+                isDark
+                  ? 'bg-gradient-to-r from-indigo-950/70 via-purple-950/50 to-slate-900/80 border-indigo-500/40 text-white'
+                  : 'bg-gradient-to-r from-indigo-50/90 via-purple-50/60 to-white border-indigo-200 text-slate-900'
+              }`}
+            >
+              <div className="flex items-start gap-3 min-w-0">
+                <div className="p-2.5 rounded-xl bg-indigo-500/20 text-indigo-400 mt-0.5 shrink-0">
+                  <IoMegaphoneOutline className="text-xl" />
+                </div>
+                <div className="space-y-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+                      Faculty Announcement
+                    </span>
+                    <span className="text-xs font-bold truncate">{latestAnnouncement.title}</span>
+                    {latestAnnouncement.sender && (
+                      <span className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        &bull; {latestAnnouncement.sender.name}
+                      </span>
+                    )}
+                    <span className={`text-[11px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                      ({latestAnnouncement.time})
+                    </span>
+                  </div>
+                  <p className={`text-xs line-clamp-2 leading-relaxed ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                    {latestAnnouncement.message}
+                  </p>
+                  {onNavigateToNotifications && (
+                    <button
+                      type="button"
+                      onClick={onNavigateToNotifications}
+                      className="text-xs font-semibold text-indigo-400 hover:text-indigo-300 underline inline-flex items-center gap-1 pt-0.5 cursor-pointer"
+                    >
+                      Open in Notification Center &rarr;
+                    </button>
+                  )}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDismissedAnnouncementId(latestAnnouncement.id)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 cursor-pointer shrink-0 transition-colors"
+                title="Dismiss banner"
+              >
+                <IoCloseOutline className="text-lg" />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
 
           {/* Overall % */}

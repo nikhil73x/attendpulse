@@ -60,6 +60,8 @@ export interface AttendanceNotification {
     scope: 'all' | 'selected';
     studentIds?: string[];
     studentNames?: string[];
+    studentEmails?: string[];
+    studentRollNos?: string[];
   };
   attachments?: NotificationAttachment[];
   links?: NotificationLink[];

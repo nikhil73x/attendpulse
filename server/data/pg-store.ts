@@ -446,7 +446,8 @@ export class PostgresStore {
 
   async addNotification(notification: Omit<NotificationItem, 'id' | 'time' | 'read'>): Promise<NotificationItem> {
     const id = `notif-${Date.now()}`;
-    const time = 'Just now';
+    const formattedTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const time = `Today, ${formattedTime}`;
     await this.q(
       `INSERT INTO ap_notifications (id,title,message,time,type,read,sender,target,attachments,links)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
@@ -465,7 +466,12 @@ export class PostgresStore {
   }
 
   async deleteNotification(id: string): Promise<boolean> {
-    const res = await this.sql.query('DELETE FROM ap_notifications WHERE id=$1', [id], { fullResults: true });
-    return (res.rowCount ?? 0) > 0;
+    await this.q('DELETE FROM ap_notifications WHERE id=$1', [id]);
+    return true;
+  }
+
+  async clearNotifications(): Promise<boolean> {
+    await this.q('DELETE FROM ap_notifications');
+    return true;
   }
 }

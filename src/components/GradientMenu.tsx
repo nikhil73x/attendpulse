@@ -189,6 +189,31 @@ export function GradientMenu({
     return () => { active = false; };
   }, []);
 
+  // Real-time synchronization of notifications
+  useEffect(() => {
+    let active = true;
+
+    const refreshNotifications = () => {
+      api.getNotifications()
+        .then((data) => {
+          if (active && Array.isArray(data)) {
+            setNotifications(data);
+          }
+        })
+        .catch(() => {});
+    };
+
+    // Refresh immediately when view changes (e.g. user opens notifications or home)
+    refreshNotifications();
+
+    // Auto-poll every 10 seconds for real-time announcements from faculty
+    const interval = setInterval(refreshNotifications, 10000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [activeView]);
+
   // Handlers
   const handleUpdateSubject = (subjectId: string, attendedDelta: number, totalDelta: number) => {
     setSubjects((prev) =>
@@ -279,14 +304,19 @@ export function GradientMenu({
 
   const handleMarkAllNotificationsRead = () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    Promise.all(
+      notifications.filter((n) => !n.read).map((n) => api.markNotificationAsRead(n.id).catch(() => {}))
+    ).catch(() => {});
   };
 
   const handleClearAllNotifications = () => {
     setNotifications([]);
+    api.clearNotifications().catch((err) => console.error('Failed to clear notifications on server:', err));
   };
 
   const handleDeleteNotification = (id: string) => {
     setNotifications((prev) => prev.filter((n) => n.id !== id));
+    api.deleteNotification(id).catch((err) => console.error('Failed to delete notification on server:', err));
   };
 
   const handleSendAnnouncement = (
@@ -296,13 +326,28 @@ export function GradientMenu({
       hour: '2-digit',
       minute: '2-digit',
     });
-    const notification: AttendanceNotification = {
+    const tempId = `notif-${Date.now()}`;
+    const optimisticNotif: AttendanceNotification = {
       ...newNotif,
-      id: `notif-${Date.now()}`,
+      id: tempId,
       time: `Today, ${formattedTime}`,
       read: false,
     };
-    setNotifications((prev) => [notification, ...prev]);
+    // Immediate optimistic local update
+    setNotifications((prev) => [optimisticNotif, ...prev]);
+
+    // Persist to Neon DB backend so students receive it live across devices & sessions
+    api.sendNotification(newNotif)
+      .then((savedNotif) => {
+        if (savedNotif && savedNotif.id) {
+          setNotifications((prev) =>
+            prev.map((n) => (n.id === tempId ? savedNotif : n))
+          );
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to persist notification to server:', err);
+      });
   };
 
   const handleResetData = () => {
@@ -599,6 +644,8 @@ export function GradientMenu({
                     onNavigateToSchedule={() => setActiveView('timetable')}
                     onExportCSV={triggerTeacherCSVExport} isDark={isDark} />
                 : <StudentDashboard profile={profile} subjects={subjects} timetable={timetable}
+                    notifications={notifications}
+                    onNavigateToNotifications={() => setActiveView('notifications')}
                     onNavigateToTimetable={() => setActiveView('timetable')}
                     onUpdateSubject={handleUpdateSubject} isDark={isDark} view="overview" />}
             </motion.div>
@@ -623,6 +670,8 @@ export function GradientMenu({
                     isDark={isDark}
                   />
                 : <StudentDashboard profile={profile} subjects={subjects} timetable={timetable}
+                    notifications={notifications}
+                    onNavigateToNotifications={() => setActiveView('notifications')}
                     onNavigateToTimetable={() => setActiveView('timetable')}
                     onUpdateSubject={handleUpdateSubject} isDark={isDark} view="attendance" />}
             </motion.div>
