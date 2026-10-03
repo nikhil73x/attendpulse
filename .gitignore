@@ -45,3 +45,4 @@ data/*.tmp
 coverage
 
 .vercel
+.env*
