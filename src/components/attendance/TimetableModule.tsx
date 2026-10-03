@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { TimetableSlot, SubjectAttendance } from '../../types/attendance';
 import {
   IoTimeOutline,
@@ -11,8 +11,64 @@ import {
   IoLockClosedOutline,
   IoSchoolOutline,
   IoSparklesOutline,
+  IoCloseOutline,
+  IoClipboardOutline,
+  IoCheckmarkSharp,
 } from 'react-icons/io5';
 import { motion, AnimatePresence } from 'framer-motion';
+
+export function parseTimetableCSV(text: string): TimetableSlot[] {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  if (lines.length <= 1) return [];
+  const delimiter = lines[0].includes('\t') ? '\t' : lines[0].includes(';') ? ';' : ',';
+  const newSlots: TimetableSlot[] = [];
+  const validDays: TimetableSlot['day'][] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i]
+      .split(delimiter === '\t' ? '\t' : /,(?=(?:(?:[^"]*"){2})*[^"]*$)/)
+      .map((c) => c.replace(/^["']|["']$/g, '').trim());
+
+    if (cols.length >= 4) {
+      let dayRaw = cols[0] || 'Monday';
+      let time = cols[1] || '09:00 AM - 10:00 AM';
+      let subjectCode = cols[2] || `CS${300 + i}`;
+      let subjectName = cols[3] || 'Course Lecture';
+      let instructor = cols[4] || 'Faculty Member';
+      let room = cols[5] || 'Hall 101';
+
+      if (cols.length >= 5 && validDays.some((d) => d.toLowerCase() === cols[1]?.toLowerCase())) {
+        dayRaw = cols[1];
+        time = cols[2] || time;
+        subjectCode = cols[3] || subjectCode;
+        subjectName = cols[4] || subjectName;
+        instructor = cols[5] || instructor;
+        room = cols[6] || room;
+      } else if (cols[0]?.includes('-') || cols[0]?.includes('/')) {
+        const parsedDate = new Date(cols[0]);
+        if (!isNaN(parsedDate.getTime())) {
+          const weekday = parsedDate.toLocaleDateString('en-US', { weekday: 'long' });
+          if (validDays.some((d) => d.toLowerCase() === weekday.toLowerCase())) {
+            dayRaw = weekday;
+          }
+        }
+      }
+
+      const day = validDays.find((d) => d.toLowerCase() === dayRaw.toLowerCase()) || 'Monday';
+      newSlots.push({
+        id: `tt-${Date.now()}-${i}`,
+        day,
+        time,
+        subjectCode: subjectCode.toUpperCase(),
+        subjectName,
+        instructor,
+        room,
+        status: 'upcoming',
+      });
+    }
+  }
+  return newSlots;
+}
 
 interface TimetableModuleProps {
   slots: TimetableSlot[];
@@ -37,9 +93,45 @@ export const TimetableModule: React.FC<TimetableModuleProps> = ({
 }) => {
   const [selectedDay, setSelectedDay] = useState<TimetableSlot['day']>('Monday');
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importTab, setImportTab] = useState<'paste' | 'file'>('paste');
+  const [pastedCSV, setPastedCSV] = useState('');
+  const [importError, setImportError] = useState<string | null>(null);
   const [attendedSlots, setAttendedSlots] = useState<Record<string, boolean>>({ 'tt-1': true });
   const [timetableImportNotice, setTimetableImportNotice] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const sampleTimetableCSV = `Day,Time,SubjectCode,SubjectName,Instructor,Room
+Monday,09:30 AM - 10:30 AM,CS101,Introduction to Computer Science,Prof. Alan Turing,Hall A
+Monday,11:00 AM - 12:30 PM,CS102,Data Structures & Algorithms,Prof. Donald Knuth,Hall B
+Monday,02:00 PM - 03:30 PM,CS103,Computer Organization,Dr. Grace Hopper,Lab 1
+Tuesday,09:30 AM - 11:00 AM,CS104,Operating Systems,Prof. Linus Torvalds,Hall C
+Tuesday,11:30 AM - 01:00 PM,CS105,Database Management Systems,Dr. Edgar Codd,Lab 2
+Wednesday,10:00 AM - 11:30 AM,CS102,Data Structures Lab,Prof. Donald Knuth,Lab 3
+Wednesday,01:30 PM - 03:00 PM,CS106,Artificial Intelligence & ML,Prof. Nikhil Yadav,AI Studio
+Thursday,09:30 AM - 11:00 AM,CS104,OS Kernel Programming,Prof. Linus Torvalds,Hall C
+Thursday,11:30 AM - 01:00 PM,CS105,Database SQL Studio,Dr. Edgar Codd,Lab 2
+Friday,10:00 AM - 11:30 AM,CS101,Computing Ethics & Seminar,Prof. Alan Turing,Auditorium
+Friday,01:30 PM - 03:30 PM,CS106,AI Capstone Project,Prof. Nikhil Yadav,AI Studio`;
+
+  const detectedSlotCount = useMemo(() => {
+    if (!pastedCSV.trim()) return 0;
+    return parseTimetableCSV(pastedCSV).length;
+  }, [pastedCSV]);
+
+  const handleConfirmTimetableImport = () => {
+    setImportError(null);
+    const parsed = parseTimetableCSV(pastedCSV);
+    if (parsed.length === 0) {
+      setImportError('No valid timetable slots detected. Ensure Day, Time, and Subject columns exist.');
+      return;
+    }
+    onImportSlots?.(parsed);
+    setTimetableImportNotice(`Successfully imported ${parsed.length} schedule slots!`);
+    setIsImportModalOpen(false);
+    setPastedCSV('');
+    setTimeout(() => setTimetableImportNotice(null), 3500);
+  };
 
   const [newSubCode, setNewSubCode] = useState('');
   const [newSubName, setNewSubName] = useState('');
@@ -80,54 +172,8 @@ export const TimetableModule: React.FC<TimetableModuleProps> = ({
       try {
         const text = event.target?.result as string;
         if (!text) return;
-        const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
-        if (lines.length <= 1) return;
-        const newSlots: TimetableSlot[] = [];
-        for (let i = 1; i < lines.length; i++) {
-          const cols = lines[i]
-            .split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/)
-            .map((c) => c.replace(/^["']|["']$/g, '').trim());
-          if (cols.length >= 4) {
-            const validDays: TimetableSlot['day'][] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-            let dayRaw = cols[0] || 'Monday';
-            let time = cols[1] || '09:00 AM - 10:00 AM';
-            let subjectCode = cols[2] || `CS${300 + i}`;
-            let subjectName = cols[3] || 'Course Lecture';
-            let instructor = cols[4] || 'Faculty Member';
-            let room = cols[5] || 'Hall 101';
-
-            // Support Monthly Dated CSVs: Date, Day, Time, SubjectCode, SubjectName, Instructor, Room
-            if (cols.length >= 5 && validDays.some((d) => d.toLowerCase() === cols[1]?.toLowerCase())) {
-              dayRaw = cols[1];
-              time = cols[2] || time;
-              subjectCode = cols[3] || subjectCode;
-              subjectName = cols[4] || subjectName;
-              instructor = cols[5] || instructor;
-              room = cols[6] || room;
-            } else if (cols[0]?.includes('-') || cols[0]?.includes('/')) {
-              // Support Date as first column (e.g. 2026-10-05) -> auto-convert to Day of Week
-              const parsedDate = new Date(cols[0]);
-              if (!isNaN(parsedDate.getTime())) {
-                const weekday = parsedDate.toLocaleDateString('en-US', { weekday: 'long' });
-                if (validDays.some((d) => d.toLowerCase() === weekday.toLowerCase())) {
-                  dayRaw = weekday;
-                }
-              }
-            }
-
-            const day = validDays.find((d) => d.toLowerCase() === dayRaw.toLowerCase()) || 'Monday';
-            newSlots.push({
-              id: `tt-${Date.now()}-${i}`,
-              day,
-              time,
-              subjectCode,
-              subjectName,
-              instructor,
-              room,
-              status: 'upcoming',
-            });
-          }
-        }
+        setPastedCSV(text);
+        const newSlots = parseTimetableCSV(text);
         if (newSlots.length > 0) {
           onImportSlots?.(newSlots);
           setTimetableImportNotice(`Successfully imported ${newSlots.length} schedule slots from CSV!`);
@@ -194,8 +240,8 @@ export const TimetableModule: React.FC<TimetableModuleProps> = ({
             {onImportSlots && (
               <button
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
-                title="Import schedule slots from CSV"
+                onClick={() => setIsImportModalOpen(true)}
+                title="Import schedule slots from CSV or paste table text"
                 className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
                   isDark
                     ? 'bg-white/[0.06] hover:bg-white/[0.12] border-white/10 text-slate-200'
@@ -204,6 +250,38 @@ export const TimetableModule: React.FC<TimetableModuleProps> = ({
               >
                 <IoCloudUploadOutline className="text-base" />
                 <span>Import Schedule</span>
+              </button>
+            )}
+
+            {onImportSlots && subjects.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  const daysList: TimetableSlot['day'][] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+                  const timesList = ['09:30 AM - 10:30 AM', '11:00 AM - 12:30 PM', '02:00 PM - 03:30 PM'];
+                  const generated: TimetableSlot[] = subjects.map((sub, idx) => ({
+                    id: `tt-${Date.now()}-${idx}`,
+                    day: daysList[idx % daysList.length],
+                    time: timesList[idx % timesList.length],
+                    subjectCode: sub.code,
+                    subjectName: sub.name,
+                    instructor: sub.instructor || 'Faculty Incharge',
+                    room: sub.room || 'Hall 101',
+                    status: (idx === 0 ? 'ongoing' : 'upcoming') as TimetableSlot['status'],
+                  }));
+                  onImportSlots(generated);
+                  setTimetableImportNotice(`Generated ${generated.length} weekly timetable slots from your enrolled courses!`);
+                  setTimeout(() => setTimetableImportNotice(null), 3500);
+                }}
+                title="Generate timetable slots from currently enrolled courses"
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                  isDark
+                    ? 'bg-indigo-600/20 hover:bg-indigo-600/30 border-indigo-500/30 text-indigo-300'
+                    : 'bg-indigo-50 hover:bg-indigo-100/90 border-indigo-200 text-indigo-700 shadow-sm'
+                }`}
+              >
+                <IoSparklesOutline className="text-sm" />
+                <span>Auto-Sync Courses</span>
               </button>
             )}
 
@@ -518,6 +596,159 @@ export const TimetableModule: React.FC<TimetableModuleProps> = ({
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Import Timetable Modal */}
+      <AnimatePresence>
+        {isImportModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsImportModalOpen(false)}
+              className="absolute inset-0 bg-black/65 backdrop-blur-sm cursor-pointer"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className={`relative w-full max-w-xl rounded-2xl p-6 shadow-2xl border z-10 max-h-[90vh] flex flex-col ${
+                isDark ? 'bg-[#0f131c] border-white/10 text-white' : 'bg-white border-slate-200 text-slate-900'
+              }`}
+            >
+              {/* Header */}
+              <div className="flex items-start justify-between gap-3 pb-3 border-b border-white/[0.08]">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                      Schedule Sync
+                    </span>
+                    <h3 className="text-lg font-bold">Import Academic Timetable</h3>
+                  </div>
+                  <p className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    Paste weekly or monthly timetable rows or upload a CSV file.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsImportModalOpen(false)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                >
+                  <IoCloseOutline className="text-xl" />
+                </button>
+              </div>
+
+              {/* Tab Selector */}
+              <div className="flex items-center gap-4 mt-4 border-b border-white/[0.08] pb-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setImportTab('paste')}
+                  className={`pb-1 font-semibold flex items-center gap-1.5 border-b-2 transition-all cursor-pointer ${
+                    importTab === 'paste'
+                      ? 'border-indigo-500 text-indigo-400'
+                      : 'border-transparent text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <IoClipboardOutline className="text-sm" />
+                  <span>Paste CSV / Table Data</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setImportTab('file')}
+                  className={`pb-1 font-semibold flex items-center gap-1.5 border-b-2 transition-all cursor-pointer ${
+                    importTab === 'file'
+                      ? 'border-indigo-500 text-indigo-400'
+                      : 'border-transparent text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <IoCloudUploadOutline className="text-sm" />
+                  <span>Upload .CSV File</span>
+                </button>
+              </div>
+
+              {/* Tab Content */}
+              <div className="mt-3 flex-1 flex flex-col space-y-3 overflow-y-auto">
+                {importTab === 'paste' ? (
+                  <div>
+                    <div className="flex items-center justify-between text-xs mb-1.5">
+                      <label className="text-[11px] font-semibold text-slate-400">
+                        Paste rows (Day, Time, SubjectCode, SubjectName, Instructor, Room):
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setPastedCSV(sampleTimetableCSV)}
+                        className="text-[11px] text-indigo-400 hover:text-indigo-300 font-semibold underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <IoSparklesOutline />
+                        <span>Insert Sample Weekly Schedule</span>
+                      </button>
+                    </div>
+                    <textarea
+                      rows={8}
+                      value={pastedCSV}
+                      onChange={(e) => setPastedCSV(e.target.value)}
+                      placeholder={`Day,Time,SubjectCode,SubjectName,Instructor,Room\nMonday,09:30 AM - 10:30 AM,CS101,Intro to CS,Prof. Alan Turing,Hall A`}
+                      className={`w-full p-3 font-mono text-xs rounded-xl border focus:outline-none resize-none ${
+                        isDark ? 'bg-black/40 border-white/10 text-white placeholder:text-slate-500' : 'bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400'
+                      }`}
+                    />
+                  </div>
+                ) : (
+                  <div className="p-8 border-2 border-dashed rounded-xl border-white/15 text-center flex flex-col items-center justify-center gap-2">
+                    <IoCloudUploadOutline className="text-4xl text-amber-400 opacity-80" />
+                    <p className="text-xs font-semibold">Select your timetable .csv file from your computer</p>
+                    <p className="text-[11px] text-slate-400">Supports weekly (Monday-Friday) or monthly dated schedule CSV files.</p>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="mt-2 px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md cursor-pointer transition-all"
+                    >
+                      Browse Timetable CSV
+                    </button>
+                  </div>
+                )}
+
+                {/* Live Detection Summary */}
+                {detectedSlotCount > 0 && (
+                  <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-xs flex items-center gap-2 font-medium animate-fade-in">
+                    <IoCheckmarkSharp className="text-base shrink-0" />
+                    <span>
+                      Detected <strong>{detectedSlotCount}</strong> schedule slots ready to import.
+                    </span>
+                  </div>
+                )}
+
+                {importError && (
+                  <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-400 text-xs flex items-center gap-2 font-medium">
+                    <span>{importError}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-white/[0.08] mt-3">
+                <button
+                  type="button"
+                  onClick={() => setIsImportModalOpen(false)}
+                  className={`px-4 py-2 rounded-xl text-xs font-semibold border ${
+                    isDark ? 'border-white/10 hover:bg-white/10 text-slate-300' : 'border-slate-300 hover:bg-slate-100 text-slate-700'
+                  }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmTimetableImport}
+                  disabled={detectedSlotCount === 0}
+                  className="px-5 py-2 rounded-xl text-xs font-bold bg-white hover:bg-neutral-100 text-neutral-950 shadow-md cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                >
+                  Confirm & Import {detectedSlotCount > 0 ? `${detectedSlotCount} Slots` : ''}
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

@@ -408,6 +408,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
   const todaySlots = timetable.filter(
     (s) => s.day?.trim().toLowerCase() === currentDayName.toLowerCase()
   );
+  const displaySlots = todaySlots.length > 0 ? todaySlots : timetable.slice(0, 4);
 
   const [hasCheckedInToday, setHasCheckedInToday] = useState<boolean>(
     () => readStreakData().lastDate === todayISO(),
@@ -622,12 +623,14 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-500/15 text-indigo-400 border border-indigo-500/20">
-                  Daily Schedule
+                  {todaySlots.length > 0 ? 'Daily Schedule' : 'Upcoming Schedule'}
                 </span>
-                <h3 className="font-bold text-base tracking-tight">Today&apos;s Academic Schedule</h3>
+                <h3 className="font-bold text-base tracking-tight">
+                  {todaySlots.length > 0 ? "Today's Academic Schedule" : 'Upcoming Lectures'}
+                </h3>
               </div>
               <p className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                {currentDayName} &bull; Scheduled lecture sessions
+                {todaySlots.length > 0 ? `${currentDayName} • Scheduled lecture sessions` : 'Active classes from your weekly academic schedule'}
               </p>
             </div>
             {onNavigateToTimetable && (
@@ -642,10 +645,10 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
             )}
           </div>
 
-          {todaySlots.length === 0 ? (
+          {displaySlots.length === 0 ? (
             <div className={`p-6 text-center rounded-xl border ${isDark ? 'bg-white/[0.02] border-white/5 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-500'}`}>
               <IoCalendarOutline className="text-3xl mx-auto mb-2 opacity-40 text-indigo-400" />
-              <p className="text-xs font-medium">No live lectures scheduled for today ({currentDayName}).</p>
+              <p className="text-xs font-medium">No live lectures scheduled yet.</p>
               {onNavigateToTimetable && (
                 <button
                   type="button"
@@ -658,7 +661,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
             </div>
           ) : (
             <div className="space-y-2.5">
-              {todaySlots.map((slot) => (
+              {displaySlots.map((slot) => (
                 <div
                   key={slot.id}
                   className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
@@ -678,6 +681,11 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                     <div>
                       <div className="flex items-center gap-2">
                         <h4 className="font-semibold text-sm leading-tight">{slot.subjectName}</h4>
+                        {todaySlots.length === 0 && slot.day && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-indigo-500/15 text-indigo-400 border border-indigo-500/20">
+                            {slot.day}
+                          </span>
+                        )}
                         {slot.status === 'ongoing' && (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 animate-pulse">
                             Happening Now

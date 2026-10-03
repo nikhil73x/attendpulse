@@ -11,9 +11,147 @@ import {
   IoCloseOutline,
   IoLockClosedOutline,
   IoSchoolOutline,
+  IoSparklesOutline,
+  IoClipboardOutline,
+  IoCheckmarkSharp,
+  IoAlertCircleOutline,
 } from 'react-icons/io5';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '../../services/api';
+
+const AVATAR_GRADIENTS = [
+  'from-indigo-500 to-purple-600',
+  'from-blue-500 to-cyan-500',
+  'from-pink-500 to-rose-500',
+  'from-emerald-500 to-teal-500',
+  'from-amber-500 to-orange-500',
+  'from-teal-500 to-emerald-600',
+];
+
+export function parseStudentCSV(text: string): Student[] {
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (lines.length === 0) return [];
+
+  const firstLine = lines[0];
+  const delimiter = firstLine.includes('\t') ? '\t' : firstLine.includes(';') ? ';' : ',';
+  const firstCols = firstLine
+    .split(delimiter)
+    .map((c) => c.replace(/^["']|["']$/g, '').trim().toLowerCase());
+
+  const hasHeader = firstCols.some((c) =>
+    c.includes('roll') || c.includes('name') || c.includes('student') || c.includes('email') || c.includes('id')
+  );
+
+  let rollIdx = -1;
+  let nameIdx = -1;
+  let emailIdx = -1;
+  let statusIdx = -1;
+
+  if (hasHeader) {
+    firstCols.forEach((col, idx) => {
+      if (col.includes('roll') || col.includes('urn') || col.includes('reg') || (col.includes('id') && !col.includes('name'))) {
+        rollIdx = idx;
+      } else if (col.includes('name') || col.includes('student')) {
+        nameIdx = idx;
+      } else if (col.includes('email') || col.includes('mail')) {
+        emailIdx = idx;
+      } else if (col.includes('status') || col.includes('attendance')) {
+        statusIdx = idx;
+      }
+    });
+  }
+
+  if (rollIdx === -1) rollIdx = 0;
+  if (nameIdx === -1) nameIdx = 1;
+  if (emailIdx === -1) emailIdx = 2;
+
+  const startIndex = hasHeader ? 1 : 0;
+  const students: Student[] = [];
+
+  for (let i = startIndex; i < lines.length; i++) {
+    const rawCols = lines[i]
+      .split(delimiter === '\t' ? '\t' : /,(?=(?:(?:[^"]*"){2})*[^"]*$)/)
+      .map((c) => c.replace(/^["']|["']$/g, '').trim());
+
+    if (rawCols.length < 2) continue;
+
+    let rollNo = rawCols[rollIdx] || '';
+    let name = rawCols[nameIdx] || '';
+    let email = rawCols[emailIdx] || '';
+    const statusRaw = (statusIdx !== -1 ? rawCols[statusIdx] : (rawCols[3] || '')).toLowerCase();
+
+    // Column swap heuristics
+    if (name.includes('@') && !email.includes('@')) {
+      const tmp = name; name = email; email = tmp;
+    }
+    if (rollNo.includes(' ') && !/\d/.test(rollNo) && /\d/.test(name) && !name.includes(' ')) {
+      const tmp = rollNo; rollNo = name; name = tmp;
+    }
+
+    if (!rollNo && !name) continue;
+    if (!rollNo) rollNo = `2026-CS-${1000 + i}`;
+    if (!name) name = `Student ${i}`;
+
+    if (!email || !email.includes('@')) {
+      const cleanName = name.toLowerCase().replace(/[^a-z0-9]/g, '.');
+      email = `${cleanName}@school.edu`;
+    }
+
+    let status: AttendanceStatus = 'present';
+    if (statusRaw.includes('absent')) status = 'absent';
+    else if (statusRaw.includes('late')) status = 'late';
+    else if (statusRaw.includes('excuse')) status = 'excused';
+
+    students.push({
+      id: `imported-${Date.now()}-${i}`,
+      rollNo: rollNo.toUpperCase(),
+      name,
+      email: email.toLowerCase(),
+      avatarColor: AVATAR_GRADIENTS[i % AVATAR_GRADIENTS.length],
+      status,
+    });
+  }
+
+  return students;
+}
+
+export function parseSubjectCSV(text: string): SubjectAttendance[] {
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (lines.length === 0) return [];
+
+  const firstLine = lines[0];
+  const delimiter = firstLine.includes('\t') ? '\t' : firstLine.includes(';') ? ';' : ',';
+  const hasHeader = lines[0].toLowerCase().includes('code') || lines[0].toLowerCase().includes('name') || lines[0].toLowerCase().includes('course');
+  const startIndex = hasHeader ? 1 : 0;
+
+  const subjects: SubjectAttendance[] = [];
+  for (let i = startIndex; i < lines.length; i++) {
+    const cols = lines[i]
+      .split(delimiter === '\t' ? '\t' : /,(?=(?:(?:[^"]*"){2})*[^"]*$)/)
+      .map((c) => c.replace(/^["']|["']$/g, '').trim());
+
+    if (cols.length >= 2) {
+      const code = cols[0] || `CS${300 + i}`;
+      const name = cols[1] || 'Imported Course';
+      const instructor = cols[2] || 'Faculty Incharge';
+      const room = cols[3] || 'Lecture Hall';
+      const attended = !isNaN(Number(cols[4])) ? Number(cols[4]) : 20;
+      const total = !isNaN(Number(cols[5])) ? Number(cols[5]) : 24;
+      const credits = !isNaN(Number(cols[6])) ? Number(cols[6]) : 4;
+      subjects.push({
+        id: `sub-${Date.now()}-${i}`,
+        code: code.toUpperCase(),
+        name,
+        instructor,
+        room,
+        attended,
+        total,
+        credits,
+      });
+    }
+  }
+  return subjects;
+}
 
 interface TeacherRegisterProps {
   students: Student[];
@@ -98,6 +236,11 @@ export const TeacherRegister: React.FC<TeacherRegisterProps> = ({
   const [searchQuery, setSearchQuery]         = useState('');
   const [statusFilter, setStatusFilter]       = useState<'all' | AttendanceStatus>('all');
   const [isAddModalOpen, setIsAddModalOpen]   = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importTab, setImportTab]             = useState<'paste' | 'file'>('paste');
+  const [importTarget, setImportTarget]       = useState<'students' | 'subjects'>('students');
+  const [pastedCSV, setPastedCSV]             = useState('');
+  const [importError, setImportError]         = useState<string | null>(null);
   const [saveSuccessNotice, setSaveSuccessNotice]     = useState(false);
   const [importSuccessNotice, setImportSuccessNotice] = useState<string | null>(null);
 
@@ -213,6 +356,74 @@ export const TeacherRegister: React.FC<TeacherRegisterProps> = ({
     URL.revokeObjectURL(url); // FIX #15
   };
 
+  const sampleStudentsCSV = `Roll No,Student Name,Email,Status
+2026-CS-0101,Aarav Sharma,aarav.sharma@school.edu,present
+2026-CS-0102,Diya Patel,diya.patel@school.edu,present
+2026-CS-0103,Rohan Gupta,rohan.gupta@school.edu,present
+2026-CS-0104,Ananya Iyer,ananya.iyer@school.edu,present
+2026-CS-0105,Kabir Singh,kabir.singh@school.edu,present
+2026-CS-0106,Ishaan Verma,ishaan.verma@school.edu,present
+2026-CS-0107,Meera Nambiar,meera.nambiar@school.edu,present
+2026-CS-0108,Siddharth Rao,siddharth.rao@school.edu,present
+2026-CS-0109,Pooja Reddy,pooja.reddy@school.edu,present
+2026-CS-0110,Vikram Malhotra,vikram.m@school.edu,present
+2026-CS-0111,Neha Choudhury,neha.c@school.edu,present
+2026-CS-0112,Aditya Joshi,aditya.j@school.edu,present
+2026-CS-0113,Sanya Kapoor,sanya.k@school.edu,present
+2026-CS-0114,Arjun Nair,arjun.n@school.edu,present
+2026-CS-0115,Tanvi Deshmukh,tanvi.d@school.edu,present
+2026-CS-0116,Rishi Menon,rishi.m@school.edu,present
+2026-CS-0117,Kavya Pillai,kavya.p@school.edu,present
+2026-CS-0118,Devansh Bhatt,devansh.b@school.edu,present
+2026-CS-0119,Rhea Mukherjee,rhea.m@school.edu,present
+2026-CS-0120,Varun Sen,varun.sen@school.edu,present`;
+
+  const sampleSubjectsCSV = `Code,Course Name,Instructor,Room,Credits
+CS101,Introduction to Computer Science,Prof. Alan Turing,Hall A,4
+CS102,Data Structures & Algorithms,Prof. Donald Knuth,Hall B,4
+CS103,Computer Organization,Dr. Grace Hopper,Lab 1,3
+CS104,Operating Systems,Prof. Linus Torvalds,Hall C,4
+CS105,Database Management Systems,Dr. Edgar Codd,Lab 2,4
+CS106,Artificial Intelligence & Machine Learning,Prof. Nikhil Yadav,AI Studio,4`;
+
+  const detectedStudentCount = useMemo(() => {
+    if (importTarget !== 'students' || !pastedCSV.trim()) return 0;
+    return parseStudentCSV(pastedCSV).length;
+  }, [pastedCSV, importTarget]);
+
+  const detectedSubjectCount = useMemo(() => {
+    if (importTarget !== 'subjects' || !pastedCSV.trim()) return 0;
+    return parseSubjectCSV(pastedCSV).length;
+  }, [pastedCSV, importTarget]);
+
+  const handleConfirmImport = () => {
+    setImportError(null);
+    if (importTarget === 'students') {
+      const parsed = parseStudentCSV(pastedCSV);
+      if (parsed.length === 0) {
+        setImportError('No valid student rows detected. Ensure you have Roll No and Name columns.');
+        return;
+      }
+      onImportStudents(parsed);
+      setImportSuccessNotice(`Successfully imported ${parsed.length} student records! Student accounts are now active.`);
+      setIsImportModalOpen(false);
+      setPastedCSV('');
+      setTimeout(() => setImportSuccessNotice(null), 4000);
+    } else {
+      if (!onImportSubjects) return;
+      const parsed = parseSubjectCSV(pastedCSV);
+      if (parsed.length === 0) {
+        setImportError('No valid course rows detected. Ensure Code and Course Name columns exist.');
+        return;
+      }
+      onImportSubjects(parsed);
+      setImportSuccessNotice(`Successfully imported ${parsed.length} courses!`);
+      setIsImportModalOpen(false);
+      setPastedCSV('');
+      setTimeout(() => setImportSuccessNotice(null), 4000);
+    }
+  };
+
   const handleCSVFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -221,79 +432,32 @@ export const TeacherRegister: React.FC<TeacherRegisterProps> = ({
       try {
         const text = event.target?.result as string;
         if (!text) return;
+        setPastedCSV(text);
+
         const lines = text.split(/\r?\n/).filter((line) => line.trim().length > 0);
         if (lines.length < 1) return;
         const headerLine = lines[0].toLowerCase();
-        // Check if uploaded file is subjects/courses or student roster
-        const isSubjectCSV =
-          (headerLine.includes('code') && (headerLine.includes('instructor') || headerLine.includes('credits') || headerLine.includes('room'))) ||
-          headerLine.includes('subject');
 
-        if (isSubjectCSV && onImportSubjects) {
-          const newSubjects: SubjectAttendance[] = [];
-          for (let i = 1; i < lines.length; i++) {
-            const cols = lines[i]
-              .split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/)
-              .map((c) => c.replace(/^["']|["']$/g, '').trim());
-            if (cols.length >= 2) {
-              const code       = cols[0] || `CS${300 + i}`;
-              const name       = cols[1] || 'Imported Course';
-              const instructor = cols[2] || 'Faculty Incharge';
-              const room       = cols[3] || 'Lecture Hall';
-              const attended   = !isNaN(Number(cols[4])) ? Number(cols[4]) : 20;
-              const total      = !isNaN(Number(cols[5])) ? Number(cols[5]) : 24;
-              const credits    = !isNaN(Number(cols[6])) ? Number(cols[6]) : 4;
-              newSubjects.push({
-                id: `sub-${Date.now()}-${i}`,
-                code,
-                name,
-                instructor,
-                room,
-                attended,
-                total,
-                credits,
-              });
-            }
-          }
+        // Strict subject detection: ONLY if file has credits/instructor AND no student or roll mentions
+        const isStrictSubject =
+          !headerLine.includes('roll') &&
+          !headerLine.includes('student') &&
+          !headerLine.includes('reg') &&
+          (headerLine.includes('credits') || headerLine.includes('instructor')) &&
+          (headerLine.includes('code') || headerLine.includes('course'));
+
+        if (isStrictSubject && onImportSubjects) {
+          const newSubjects = parseSubjectCSV(text);
           if (newSubjects.length > 0) {
             onImportSubjects(newSubjects);
             setImportSuccessNotice(`Successfully imported ${newSubjects.length} subjects! Student portal curriculum synced in real-time.`);
             setTimeout(() => setImportSuccessNotice(null), 4000);
+            return;
           }
-          return;
         }
 
-        const startIndex =
-          lines[0].toLowerCase().includes('roll') || lines[0].toLowerCase().includes('name') ? 1 : 0;
-        const newStudents: Student[] = [];
-        const colors = [
-          'from-indigo-500 to-purple-600', 'from-blue-500 to-cyan-500',
-          'from-pink-500 to-rose-500',     'from-emerald-500 to-teal-500',
-          'from-amber-500 to-orange-500',  'from-teal-500 to-emerald-600',
-        ];
-        for (let i = startIndex; i < lines.length; i++) {
-          const cols = lines[i]
-            .split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/)
-            .map((c) => c.replace(/^["']|["']$/g, '').trim());
-          if (cols.length >= 2) {
-            const rollNo = cols[0] || `CS-${Date.now()}-${i}`;
-            const name   = cols[1] || 'Imported Student';
-            const email  = cols[2]?.includes('@') ? cols[2] : `${rollNo.toLowerCase()}@school.edu`;
-            let status: AttendanceStatus = 'present';
-            for (let c = 3; c < cols.length; c++) {
-              const st = (cols[c] || '').toLowerCase();
-              if (st.includes('absent')) { status = 'absent'; break; }
-              if (st.includes('late')) { status = 'late'; break; }
-              if (st.includes('excuse')) { status = 'excused'; break; }
-            }
-            newStudents.push({
-              id: `imported-${Date.now()}-${i}`,
-              rollNo, name, email,
-              avatarColor: colors[i % colors.length],
-              status,
-            });
-          }
-        }
+        // Default to student roster
+        const newStudents = parseStudentCSV(text);
         if (newStudents.length > 0) {
           onImportStudents(newStudents);
           setImportSuccessNotice(`Successfully imported ${newStudents.length} student records from CSV!`);
@@ -324,13 +488,13 @@ export const TeacherRegister: React.FC<TeacherRegisterProps> = ({
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <button type="button" onClick={() => fileInputRef.current?.click()} title="Import student roster or subjects from CSV"
+            <button type="button" onClick={() => setIsImportModalOpen(true)} title="Import student roster from CSV or paste table data directly"
               className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
                 isDark
                   ? 'bg-indigo-600/20 hover:bg-indigo-600/30 border-indigo-500/30 text-indigo-300'
                   : 'bg-indigo-50 hover:bg-indigo-100/90 border-indigo-200 text-indigo-700 shadow-sm hover:shadow'
               }`}>
-              <IoCloudUploadOutline className="text-base" /><span>Import CSV</span>
+              <IoCloudUploadOutline className="text-base" /><span>Import CSV / Paste</span>
             </button>
             <button type="button" onClick={handleExportCSV} title="Export attendance session to CSV"
               className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
@@ -647,6 +811,204 @@ export const TeacherRegister: React.FC<TeacherRegisterProps> = ({
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 6. Import CSV & Paste Modal */}
+      <AnimatePresence>
+        {isImportModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsImportModalOpen(false)}
+              className="absolute inset-0 bg-black/65 backdrop-blur-sm cursor-pointer"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className={`relative w-full max-w-xl rounded-2xl p-6 shadow-2xl border z-10 max-h-[90vh] flex flex-col ${
+                isDark ? 'bg-[#0f131c] border-white/10 text-white' : 'bg-white border-slate-200 text-slate-900'
+              }`}
+            >
+              {/* Header */}
+              <div className="flex items-start justify-between gap-3 pb-3 border-b border-white/[0.08]">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-500/15 text-indigo-400 border border-indigo-500/30">
+                      Bulk Enrollment
+                    </span>
+                    <h3 className="text-lg font-bold">Import Student Roster</h3>
+                  </div>
+                  <p className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    Paste CSV / Excel spreadsheet rows or upload a file. Enrolled students can immediately sign in to the Student Portal.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsImportModalOpen(false)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                >
+                  <IoCloseOutline className="text-xl" />
+                </button>
+              </div>
+
+              {/* Target Type Selector */}
+              <div className="flex items-center justify-between gap-3 mt-4 p-2 rounded-xl border border-white/10 bg-white/[0.03]">
+                <span className="text-xs font-semibold px-2">Data Type:</span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setImportTarget('students')}
+                    className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                      importTarget === 'students'
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    🎓 Students Roster (Default)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setImportTarget('subjects')}
+                    className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                      importTarget === 'subjects'
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    📚 Course Curriculum
+                  </button>
+                </div>
+              </div>
+
+              {/* Tab Selector */}
+              <div className="flex items-center gap-4 mt-3 border-b border-white/[0.08] pb-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setImportTab('paste')}
+                  className={`pb-1 font-semibold flex items-center gap-1.5 border-b-2 transition-all cursor-pointer ${
+                    importTab === 'paste'
+                      ? 'border-indigo-500 text-indigo-400'
+                      : 'border-transparent text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <IoClipboardOutline className="text-sm" />
+                  <span>Paste CSV / Table Data</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setImportTab('file')}
+                  className={`pb-1 font-semibold flex items-center gap-1.5 border-b-2 transition-all cursor-pointer ${
+                    importTab === 'file'
+                      ? 'border-indigo-500 text-indigo-400'
+                      : 'border-transparent text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <IoCloudUploadOutline className="text-sm" />
+                  <span>Upload .CSV File</span>
+                </button>
+              </div>
+
+              {/* Tab Content */}
+              <div className="mt-3 flex-1 flex flex-col space-y-3 overflow-y-auto">
+                {importTab === 'paste' ? (
+                  <div>
+                    <div className="flex items-center justify-between text-xs mb-1.5">
+                      <label className="text-[11px] font-semibold text-slate-400">
+                        {importTarget === 'students' ? 'Paste rows (Roll No, Name, Email, Status):' : 'Paste rows (Code, Name, Instructor, Room, Credits):'}
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setPastedCSV(importTarget === 'students' ? sampleStudentsCSV : sampleSubjectsCSV)}
+                        className="text-[11px] text-indigo-400 hover:text-indigo-300 font-semibold underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <IoSparklesOutline />
+                        <span>Insert 20 Sample Rows</span>
+                      </button>
+                    </div>
+                    <textarea
+                      rows={8}
+                      value={pastedCSV}
+                      onChange={(e) => setPastedCSV(e.target.value)}
+                      placeholder={
+                        importTarget === 'students'
+                          ? `Roll No, Student Name, Email, Status\n2026-CS-0101, Aarav Sharma, aarav.sharma@school.edu, present\n2026-CS-0102, Diya Patel, diya.patel@school.edu, present`
+                          : `Code, Course Name, Instructor, Room, Credits\nCS101, Intro to CS, Prof. Alan Turing, Hall A, 4`
+                      }
+                      className={`w-full p-3 font-mono text-xs rounded-xl border focus:outline-none resize-none ${
+                        isDark ? 'bg-black/40 border-white/10 text-white placeholder:text-slate-500' : 'bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400'
+                      }`}
+                    />
+                  </div>
+                ) : (
+                  <div className="p-8 border-2 border-dashed rounded-xl border-white/15 text-center flex flex-col items-center justify-center gap-2">
+                    <IoCloudUploadOutline className="text-4xl text-indigo-400 opacity-80" />
+                    <p className="text-xs font-semibold">Select your .csv file from your computer</p>
+                    <p className="text-[11px] text-slate-400">Supports standard comma-separated student roster or course curriculum files.</p>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="mt-2 px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md cursor-pointer transition-all"
+                    >
+                      Browse CSV File
+                    </button>
+                  </div>
+                )}
+
+                {/* Live Detection Summary */}
+                {importTarget === 'students' && detectedStudentCount > 0 && (
+                  <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-xs flex items-center gap-2 font-medium animate-fade-in">
+                    <IoCheckmarkSharp className="text-base shrink-0" />
+                    <span>
+                      Detected <strong>{detectedStudentCount}</strong> student records ready to enroll. Accounts will be auto-generated with password <strong>student123</strong>.
+                    </span>
+                  </div>
+                )}
+
+                {importTarget === 'subjects' && detectedSubjectCount > 0 && (
+                  <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-xs flex items-center gap-2 font-medium animate-fade-in">
+                    <IoCheckmarkSharp className="text-base shrink-0" />
+                    <span>
+                      Detected <strong>{detectedSubjectCount}</strong> course subjects ready to sync into curriculum.
+                    </span>
+                  </div>
+                )}
+
+                {importError && (
+                  <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-400 text-xs flex items-center gap-2 font-medium">
+                    <IoAlertCircleOutline className="text-base shrink-0" />
+                    <span>{importError}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-white/[0.08] mt-3">
+                <button
+                  type="button"
+                  onClick={() => setIsImportModalOpen(false)}
+                  className={`px-4 py-2 rounded-xl text-xs font-semibold border ${
+                    isDark ? 'border-white/10 hover:bg-white/10 text-slate-300' : 'border-slate-300 hover:bg-slate-100 text-slate-700'
+                  }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmImport}
+                  disabled={importTarget === 'students' ? detectedStudentCount === 0 : detectedSubjectCount === 0}
+                  className="px-5 py-2 rounded-xl text-xs font-bold bg-white hover:bg-neutral-100 text-neutral-950 shadow-md cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                >
+                  {importTarget === 'students'
+                    ? `Confirm & Enroll ${detectedStudentCount > 0 ? `${detectedStudentCount} Students` : ''}`
+                    : `Confirm & Import ${detectedSubjectCount > 0 ? `${detectedSubjectCount} Subjects` : ''}`}
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

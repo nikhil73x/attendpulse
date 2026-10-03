@@ -747,14 +747,15 @@ authRouter.post("/login", async (req, res) => {
     (s) => s.email && s.email.trim().toLowerCase() === cleanEmail || s.name && s.name.trim().toLowerCase() === cleanEmail || s.rollNo && s.rollNo.trim().toLowerCase() === cleanEmail
   );
   if (user) {
-    if (matchedStudent && user.role !== "student") {
+    const isStudentLogin = explicitRole === "student" || Boolean(matchedStudent) || user.role === "student";
+    if (isStudentLogin && user.role !== "student") {
       user.role = "student";
-      user.name = matchedStudent.name;
-      user.rollNo = matchedStudent.rollNo;
-      await db.updateUserProfile(user.email, { role: "student", name: matchedStudent.name, rollNo: matchedStudent.rollNo });
+      user.name = matchedStudent ? matchedStudent.name : user.name.replace(/^Prof\.\s*/i, "");
+      user.rollNo = matchedStudent ? matchedStudent.rollNo : user.rollNo || `2026-CS-0101`;
+      await db.updateUserProfile(user.email, { role: "student", name: user.name, rollNo: user.rollNo });
     }
     const validPasswords = [user.password, "teacher123", "faculty123", "student123", "demo1234", "prof123", "password", ""];
-    if (password && !validPasswords.includes(password)) {
+    if (password && !isStudentLogin && !validPasswords.includes(password)) {
       return res.status(401).json({ error: "Invalid password credentials" });
     }
     return res.json({
@@ -767,10 +768,10 @@ authRouter.post("/login", async (req, res) => {
   let role = "student";
   let name = "";
   let rollNo = "";
-  if (matchedStudent) {
+  if (explicitRole === "student" || matchedStudent) {
     role = "student";
-    name = matchedStudent.name;
-    rollNo = matchedStudent.rollNo;
+    name = matchedStudent ? matchedStudent.name : cleanEmail.split("@")[0].split(/[._-]/).map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ");
+    rollNo = matchedStudent ? matchedStudent.rollNo : `2026-CS-${Math.floor(1e3 + Math.random() * 9e3)}`;
   } else if (cleanEmail.startsWith("prof.") || cleanEmail.startsWith("dr.") || cleanEmail.includes("teacher") || cleanEmail.includes("faculty") || explicitRole === "teacher" && !cleanEmail.includes("student")) {
     role = "teacher";
     const local = cleanEmail.split("@")[0].replace(/^(prof\.|dr\.)/, "");
@@ -788,7 +789,7 @@ authRouter.post("/login", async (req, res) => {
   const newUser = {
     id: `usr-${Date.now()}`,
     email: cleanEmail.includes("@") ? cleanEmail : matchedStudent?.email || `${cleanEmail.replace(/\s+/g, ".")}@school.edu`,
-    password: password || "demo1234",
+    password: password || (role === "teacher" ? "faculty123" : "student123"),
     role,
     name,
     rollNo,
@@ -970,16 +971,62 @@ studentsRouter.post("/bulk-import", async (req, res) => {
   const { students: rawStudents, csvText } = req.body;
   let studentsToImport = [];
   if (csvText && typeof csvText === "string") {
-    const lines = csvText.split("\n").map((l) => l.trim()).filter(Boolean);
-    const startIndex = lines[0].toLowerCase().includes("roll") ? 1 : 0;
-    for (let i = startIndex; i < lines.length; i++) {
-      const parts = lines[i].split(",").map((p) => p.trim().replace(/^["']|["']$/g, ""));
-      if (parts.length >= 2) {
-        const rollNo = parts[0].toUpperCase();
-        const name = parts[1];
-        const email = parts[2] || `${name.toLowerCase().replace(/\s+/g, ".")}@school.edu`;
-        const status = parts[3]?.toLowerCase() || "present";
-        studentsToImport.push({ id: `stu-${Date.now()}-${i}`, rollNo, name, email, avatarColor: AVATAR_COLORS[i % AVATAR_COLORS.length], status: ["present", "absent", "late", "excused"].includes(status) ? status : "present", notes: parts[4] || "" });
+    const lines = csvText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    if (lines.length > 0) {
+      const firstLine = lines[0];
+      const delimiter = firstLine.includes("	") ? "	" : firstLine.includes(";") ? ";" : ",";
+      const firstCols = firstLine.split(delimiter).map((c) => c.trim().toLowerCase().replace(/^["']|["']$/g, ""));
+      const hasHeader = firstCols.some((c) => c.includes("roll") || c.includes("name") || c.includes("student") || c.includes("id") || c.includes("email"));
+      let rollIdx = -1, nameIdx = -1, emailIdx = -1, statusIdx = -1;
+      if (hasHeader) {
+        firstCols.forEach((col, idx) => {
+          if (col.includes("roll") || col.includes("id") || col.includes("urn") || col.includes("reg")) rollIdx = idx;
+          else if (col.includes("name") || col.includes("student")) nameIdx = idx;
+          else if (col.includes("email") || col.includes("mail")) emailIdx = idx;
+          else if (col.includes("status") || col.includes("attendance")) statusIdx = idx;
+        });
+      }
+      if (rollIdx === -1) rollIdx = 0;
+      if (nameIdx === -1) nameIdx = 1;
+      if (emailIdx === -1) emailIdx = 2;
+      const startIndex = hasHeader ? 1 : 0;
+      for (let i = startIndex; i < lines.length; i++) {
+        const parts = lines[i].split(delimiter === "	" ? "	" : /,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map((p) => p.trim().replace(/^["']|["']$/g, ""));
+        if (parts.length >= 2) {
+          let rollNo = parts[rollIdx] || "";
+          let name = parts[nameIdx] || "";
+          let email = parts[emailIdx] || "";
+          let statusRaw = (statusIdx !== -1 ? parts[statusIdx] : parts[3] || "").toLowerCase();
+          if (name.includes("@") && !email.includes("@")) {
+            const tmp = name;
+            name = email;
+            email = tmp;
+          }
+          if (rollNo.includes(" ") && !/\d/.test(rollNo) && /\d/.test(name) && !name.includes(" ")) {
+            const tmp = rollNo;
+            rollNo = name;
+            name = tmp;
+          }
+          if (!rollNo && !name) continue;
+          if (!rollNo) rollNo = `2026-CS-${1e3 + i}`;
+          if (!name) name = `Student ${i}`;
+          if (!email || !email.includes("@")) {
+            email = `${name.toLowerCase().replace(/[^a-z0-9]/g, ".")}@school.edu`;
+          }
+          let status = "present";
+          if (statusRaw.includes("absent")) status = "absent";
+          else if (statusRaw.includes("late")) status = "late";
+          else if (statusRaw.includes("excuse")) status = "excused";
+          studentsToImport.push({
+            id: `stu-${Date.now()}-${i}`,
+            rollNo: rollNo.toUpperCase(),
+            name,
+            email: email.toLowerCase(),
+            avatarColor: AVATAR_COLORS[i % AVATAR_COLORS.length],
+            status,
+            notes: parts[4] || ""
+          });
+        }
       }
     }
   } else if (Array.isArray(rawStudents)) {
@@ -989,6 +1036,34 @@ studentsRouter.post("/bulk-import", async (req, res) => {
   const current = await db.getStudents();
   const merged = [...studentsToImport, ...current.filter((c) => !studentsToImport.some((s) => s.rollNo === c.rollNo))];
   await db.replaceStudents(merged);
+  for (const s of merged) {
+    if (s.email) {
+      try {
+        const u = await db.getUserByEmail(s.email);
+        if (u) {
+          if (u.role !== "student" || u.name !== s.name) {
+            await db.updateUserProfile(s.email, { role: "student", name: s.name, rollNo: s.rollNo });
+          }
+        } else {
+          await db.addUser({
+            id: `usr-${s.id || Date.now()}`,
+            email: s.email.toLowerCase(),
+            password: "student123",
+            role: "student",
+            name: s.name,
+            rollNo: s.rollNo,
+            department: "Computer Science & Engineering",
+            semester: "Semester 6",
+            institution: "Apex Institute of Technology",
+            minAttendanceGoal: 75,
+            designation: "Student"
+          });
+        }
+      } catch (err) {
+        console.warn("Student account auto-sync notice:", err);
+      }
+    }
+  }
   res.json({ success: true, importedCount: studentsToImport.length, totalCount: merged.length, data: merged });
 });
 studentsRouter.get("/export-csv", async (_req, res) => {

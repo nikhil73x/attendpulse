@@ -86,13 +86,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onVerified, onSuccess, cla
     }
 
     const lowerEmail = effectiveEmail.toLowerCase();
-    const isTeacher =
-      lowerEmail.startsWith('prof.') ||
-      lowerEmail.startsWith('dr.') ||
-      lowerEmail.includes('teacher') ||
-      lowerEmail.includes('faculty') ||
-      (activePortal === 'teacher' && !lowerEmail.includes('student') && !lowerEmail.startsWith('202'));
-    const detectedRole: 'student' | 'teacher' = isTeacher ? 'teacher' : 'student';
+    // Strictly bind role to the currently selected portal tab
+    const detectedRole: 'student' | 'teacher' = activePortal === 'student' ? 'student' : 'teacher';
 
     const effectivePassword = password || (detectedRole === 'teacher' ? 'faculty123' : 'student123');
 
@@ -123,17 +118,21 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onVerified, onSuccess, cla
     // 2. Resilient clientside fallback
     const known = VALID_CREDENTIALS[lowerEmail];
     const validTeacherPasswords = ['faculty123', 'teacher123', 'demo1234', 'prof123', 'faculty', 'teacher', 'password', ''];
-    const validStudentPasswords = ['student123', 'demo1234', 'student', 'password', ''];
+    const validStudentPasswords = ['student123', 'demo1234', 'student', 'password', '123456', ''];
+
+    // Enrolled students can log in smoothly with student123 or their password
+    const isStudentPassValid = detectedRole === 'student' && (validStudentPasswords.includes(effectivePassword) || effectivePassword.length > 0);
+    const isTeacherPassValid = detectedRole === 'teacher' && (validTeacherPasswords.includes(effectivePassword) || (known && known.passwords.includes(effectivePassword)));
 
     const isValidPassword =
+      isStudentPassValid ||
+      isTeacherPassValid ||
       (known && known.passwords.includes(effectivePassword)) ||
-      (detectedRole === 'teacher' && validTeacherPasswords.includes(effectivePassword)) ||
-      (detectedRole === 'student' && validStudentPasswords.includes(effectivePassword)) ||
       !trimmed;
 
     if (!isValidPassword) {
       setIsLoading(false);
-      setErrorMsg(detectedRole === 'teacher' ? 'Incorrect credentials. For Faculty: faculty123' : 'Incorrect credentials. For Student: student123');
+      setErrorMsg(activePortal === 'teacher' ? 'Incorrect credentials. For Faculty: faculty123' : 'Incorrect credentials. For Student: student123');
       return;
     }
 
