@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { SubjectAttendance, UserProfile } from '../../types/attendance';
+import { SubjectAttendance, UserProfile, TimetableSlot } from '../../types/attendance';
 import {
   IoCheckmarkCircleOutline,
   IoTrendingUpOutline,
@@ -15,6 +15,7 @@ import {
   IoCloseOutline,
   IoChevronForwardOutline,
   IoBarChartOutline,
+  IoTimeOutline,
 } from 'react-icons/io5';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AnimatedFlame } from '../ui/AnimatedFlame';
@@ -22,6 +23,8 @@ import { AnimatedFlame } from '../ui/AnimatedFlame';
 interface StudentDashboardProps {
   profile: UserProfile;
   subjects: SubjectAttendance[];
+  timetable?: TimetableSlot[];
+  onNavigateToTimetable?: () => void;
   /** Intentionally unused by StudentDashboard — attendance is teacher-owned and read-only for students */
   onUpdateSubject: (subjectId: string, attendedDelta: number, totalDelta: number) => void;
   isDark: boolean;
@@ -393,9 +396,19 @@ const SubjectProjectionModal: React.FC<SubjectProjectionModalProps> = ({
 export const StudentDashboard: React.FC<StudentDashboardProps> = ({
   profile,
   subjects,
+  timetable = [],
+  onNavigateToTimetable,
   isDark,
   view = 'overview',
 }) => {
+  const currentDayName = (() => {
+    const d = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+    return ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].includes(d) ? d : 'Monday';
+  })();
+  const todaySlots = timetable.filter(
+    (s) => s.day?.trim().toLowerCase() === currentDayName.toLowerCase()
+  );
+
   const [hasCheckedInToday, setHasCheckedInToday] = useState<boolean>(
     () => readStreakData().lastDate === todayISO(),
   );
@@ -601,6 +614,85 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
               <span>0 missed</span><span>{Math.round(bunkSimMax / 2)} missed</span><span>{bunkSimMax} missed</span>
             </div>
           </div>
+        </div>
+
+        {/* Today's Schedule & Academic Timetable */}
+        <div className={`relative rounded-2xl p-6 border overflow-hidden transition-all ${isDark ? 'glass-panel text-white' : 'bg-white border-slate-200 text-slate-900 shadow-md'}`}>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-500/15 text-indigo-400 border border-indigo-500/20">
+                  Daily Schedule
+                </span>
+                <h3 className="font-bold text-base tracking-tight">Today&apos;s Academic Schedule</h3>
+              </div>
+              <p className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                {currentDayName} &bull; Scheduled lecture sessions
+              </p>
+            </div>
+            {onNavigateToTimetable && (
+              <button
+                type="button"
+                onClick={onNavigateToTimetable}
+                className={`text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors ${isDark ? 'text-indigo-400 hover:text-indigo-300' : 'text-indigo-600 hover:text-indigo-700'}`}
+              >
+                <span>Full Timetable</span>
+                <IoChevronForwardOutline className="text-sm" />
+              </button>
+            )}
+          </div>
+
+          {todaySlots.length === 0 ? (
+            <div className={`p-6 text-center rounded-xl border ${isDark ? 'bg-white/[0.02] border-white/5 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-500'}`}>
+              <IoCalendarOutline className="text-3xl mx-auto mb-2 opacity-40 text-indigo-400" />
+              <p className="text-xs font-medium">No live lectures scheduled for today ({currentDayName}).</p>
+              {onNavigateToTimetable && (
+                <button
+                  type="button"
+                  onClick={onNavigateToTimetable}
+                  className="mt-2 text-xs text-indigo-400 hover:underline font-semibold cursor-pointer"
+                >
+                  View full weekly timetable &rarr;
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {todaySlots.map((slot) => (
+                <div
+                  key={slot.id}
+                  className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                    slot.status === 'ongoing'
+                      ? isDark
+                        ? 'bg-indigo-950/40 border-indigo-500/40 shadow-sm'
+                        : 'bg-indigo-50/90 border-indigo-300 shadow-sm'
+                      : isDark
+                      ? 'bg-white/[0.03] border-white/10'
+                      : 'bg-slate-50 border-slate-200'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono text-xs font-bold px-2 py-1 rounded-lg bg-indigo-500/15 text-indigo-400 border border-indigo-500/25 shrink-0">
+                      {slot.subjectCode}
+                    </span>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-semibold text-sm leading-tight">{slot.subjectName}</h4>
+                        {slot.status === 'ongoing' && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 animate-pulse">
+                            Happening Now
+                          </span>
+                        )}
+                      </div>
+                      <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        {slot.time} &bull; {slot.instructor} &bull; {slot.room}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     );

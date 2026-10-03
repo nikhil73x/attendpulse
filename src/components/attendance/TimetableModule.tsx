@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { TimetableSlot } from '../../types/attendance';
+import { TimetableSlot, SubjectAttendance } from '../../types/attendance';
 import {
   IoTimeOutline,
   IoLocationOutline,
@@ -10,11 +10,13 @@ import {
   IoCloudUploadOutline,
   IoLockClosedOutline,
   IoSchoolOutline,
+  IoSparklesOutline,
 } from 'react-icons/io5';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface TimetableModuleProps {
   slots: TimetableSlot[];
+  subjects?: SubjectAttendance[];
   onAddSlot: (newSlot: Omit<TimetableSlot, 'id'>) => void;
   onImportSlots?: (newSlots: TimetableSlot[]) => void;
   onNavigateToRegister?: (subjectCode?: string) => void;
@@ -25,6 +27,7 @@ interface TimetableModuleProps {
 
 export const TimetableModule: React.FC<TimetableModuleProps> = ({
   slots,
+  subjects = [],
   onAddSlot,
   onImportSlots,
   onNavigateToRegister,
@@ -46,7 +49,7 @@ export const TimetableModule: React.FC<TimetableModuleProps> = ({
 
   const days: TimetableSlot['day'][] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
-  const daySlots = slots.filter((s) => s.day === selectedDay);
+  const daySlots = slots.filter((s) => s.day?.trim().toLowerCase() === selectedDay.toLowerCase());
 
   // Check if a timetable slot belongs to the currently logged in teacher
   const isMyClass = (slot: TimetableSlot) => {
@@ -248,13 +251,41 @@ export const TimetableModule: React.FC<TimetableModuleProps> = ({
       <div className="space-y-3.5">
         {daySlots.length === 0 ? (
           <div
-            className={`p-12 text-center rounded-2xl border ${
+            className={`p-10 text-center rounded-2xl border ${
               isDark ? 'glass-panel text-slate-400' : 'bg-white border-slate-200 text-slate-500'
             }`}
           >
-            <IoTimeOutline className="text-4xl mx-auto mb-2 opacity-40" />
+            <IoTimeOutline className="text-4xl mx-auto mb-2 opacity-40 text-indigo-400" />
             <h4 className="font-semibold text-sm">No scheduled classes for {selectedDay}</h4>
             <p className="text-xs text-slate-500 mt-1">Enjoy your study break or add a session above.</p>
+            {slots.length === 0 && subjects.length > 0 && onImportSlots && (
+              <div className="mt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const daysList: TimetableSlot['day'][] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+                    const timesList = ['09:30 AM - 10:30 AM', '11:00 AM - 12:30 PM', '02:00 PM - 03:30 PM'];
+                    const generated: TimetableSlot[] = subjects.map((sub, idx) => ({
+                      id: `tt-${Date.now()}-${idx}`,
+                      day: daysList[idx % daysList.length],
+                      time: timesList[idx % timesList.length],
+                      subjectCode: sub.code,
+                      subjectName: sub.name,
+                      instructor: sub.instructor || 'Faculty Incharge',
+                      room: sub.room || 'Hall 101',
+                      status: 'upcoming',
+                    }));
+                    onImportSlots(generated);
+                    setTimetableImportNotice(`Generated ${generated.length} weekly timetable slots from your courses!`);
+                    setTimeout(() => setTimetableImportNotice(null), 3500);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-500/20 cursor-pointer active:scale-95 transition-all"
+                >
+                  <IoSparklesOutline className="text-sm" />
+                  <span>Auto-Populate Timetable from Enrolled Courses</span>
+                </button>
+              </div>
+            )}
           </div>
         ) : (
           daySlots.map((slot) => {

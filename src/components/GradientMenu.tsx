@@ -98,14 +98,7 @@ export function GradientMenu({
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          // Purge stale mock data if present
-          if (parsed.some((s: any) => s.code === 'CS301' && s.instructor === 'Dr. Rajesh Sharma')) {
-            localStorage.removeItem('attendance_subjects');
-            return [];
-          }
-          return parsed;
-        }
+        if (Array.isArray(parsed)) return parsed;
       } catch {}
     }
     return initialSubjects;
@@ -116,13 +109,7 @@ export function GradientMenu({
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          if (parsed.some((s: any) => s.rollNo === '2026-CS-0455' && s.name === 'Nikhil Yadav')) {
-            localStorage.removeItem('attendance_students');
-            return [];
-          }
-          return parsed;
-        }
+        if (Array.isArray(parsed)) return parsed;
       } catch {}
     }
     return initialStudents;
@@ -133,13 +120,7 @@ export function GradientMenu({
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          if (parsed.some((t: any) => t.subjectCode === 'CS301')) {
-            localStorage.removeItem('attendance_timetable');
-            return [];
-          }
-          return parsed;
-        }
+        if (Array.isArray(parsed)) return parsed;
       } catch {}
     }
     return initialTimetable;
@@ -150,13 +131,7 @@ export function GradientMenu({
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          if (parsed.some((n: any) => n.id === 'notif-1')) {
-            localStorage.removeItem('attendance_notifications');
-            return [];
-          }
-          return parsed;
-        }
+        if (Array.isArray(parsed)) return parsed;
       } catch {}
     }
     return initialNotifications;
@@ -619,11 +594,12 @@ export function GradientMenu({
               initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.4, ease: 'easeOut' }}>
               {isTeacher
-                ? <TeacherDashboard profile={profile} students={students}
+                ? <TeacherDashboard profile={profile} students={students} subjects={subjects} timetable={timetable}
                     onNavigateToRegister={() => setActiveView('attendance')}
                     onNavigateToSchedule={() => setActiveView('timetable')}
                     onExportCSV={triggerTeacherCSVExport} isDark={isDark} />
-                : <StudentDashboard profile={profile} subjects={subjects}
+                : <StudentDashboard profile={profile} subjects={subjects} timetable={timetable}
+                    onNavigateToTimetable={() => setActiveView('timetable')}
                     onUpdateSubject={handleUpdateSubject} isDark={isDark} view="overview" />}
             </motion.div>
           )}
@@ -646,7 +622,8 @@ export function GradientMenu({
                     onImportSubjects={handleImportSubjects}
                     isDark={isDark}
                   />
-                : <StudentDashboard profile={profile} subjects={subjects}
+                : <StudentDashboard profile={profile} subjects={subjects} timetable={timetable}
+                    onNavigateToTimetable={() => setActiveView('timetable')}
                     onUpdateSubject={handleUpdateSubject} isDark={isDark} view="attendance" />}
             </motion.div>
           )}
@@ -658,6 +635,7 @@ export function GradientMenu({
               transition={{ duration: 0.4, ease: 'easeOut' }}>
               <TimetableModule
                 slots={timetable}
+                subjects={subjects}
                 onAddSlot={handleAddTimetableSlot}
                 onImportSlots={handleImportTimetable}
                 isTeacher={isTeacher}

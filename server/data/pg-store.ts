@@ -1,4 +1,4 @@
-import { Pool } from '@neondatabase/serverless';
+import { neon } from '@neondatabase/serverless';
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -11,137 +11,80 @@ import type {
   NotificationItem,
 } from './store';
 
-// ─── Initial seed (mirrors file store seed) ──────────────────────────────────
-const SEED_USERS: Omit<UserAccount, never>[] = [
-  { id: 'usr-1', email: 'nikhil.yadav@student.edu', password: 'student123', role: 'student', name: 'Nikhil Yadav', rollNo: '2026-CS-0455', department: 'Computer Science & Engineering', semester: 'Semester 6', institution: 'Apex Institute of Technology', minAttendanceGoal: 75, designation: 'Student' },
-  { id: 'usr-2', email: 'prof.yadav@school.edu',    password: 'teacher123', role: 'teacher', name: 'Prof. Nikhil Yadav', rollNo: 'FAC-CS-108', department: 'Computer Science & Engineering', semester: 'Department Head', institution: 'Apex Institute of Technology', minAttendanceGoal: 75, designation: 'Associate Professor' },
-  { id: 'usr-3', email: 'prof.anita@school.edu',    password: 'teacher123', role: 'teacher', name: 'Prof. Anita Roy', rollNo: 'FAC-CS-102', department: 'Computer Science & Engineering', semester: 'Faculty', institution: 'Apex Institute of Technology', minAttendanceGoal: 75, designation: 'Assistant Professor' },
-  { id: 'usr-4', email: 'prof.sharma@school.edu',   password: 'teacher123', role: 'teacher', name: 'Dr. Rajesh Sharma', rollNo: 'FAC-CS-101', department: 'Computer Science & Engineering', semester: 'Faculty', institution: 'Apex Institute of Technology', minAttendanceGoal: 75, designation: 'Professor' },
-  { id: 'usr-5', email: 'prof.singh@school.edu',    password: 'teacher123', role: 'teacher', name: 'Prof. Vikram Singh', rollNo: 'FAC-CS-103', department: 'Computer Science & Engineering', semester: 'Faculty', institution: 'Apex Institute of Technology', minAttendanceGoal: 75, designation: 'Associate Professor' },
-];
-
-const SEED_SUBJECTS: SubjectItem[] = [
-  { id: 'sub-1', code: 'CS301', name: 'Computer Networks',              instructor: 'Dr. Rajesh Sharma', instructorEmail: 'prof.sharma@school.edu', room: 'Hall 302',    attended: 28, total: 30, credits: 4 },
-  { id: 'sub-2', code: 'CS302', name: 'Database Systems',               instructor: 'Prof. Anita Roy',   instructorEmail: 'prof.anita@school.edu',  room: 'Lab 4',       attended: 21, total: 24, credits: 4 },
-  { id: 'sub-3', code: 'CS303', name: 'Operating Systems',              instructor: 'Prof. Vikram Singh', instructorEmail: 'prof.singh@school.edu', room: 'Hall 201',    attended: 22, total: 26, credits: 4 },
-  { id: 'sub-4', code: 'CS304', name: 'Design & Analysis of Algorithms',instructor: 'Prof. Nikhil Yadav', instructorEmail: 'prof.yadav@school.edu', room: 'Hall 105',    attended: 25, total: 28, credits: 4 },
-  { id: 'sub-5', code: 'CS305', name: 'Artificial Intelligence & ML',   instructor: 'Prof. Nikhil Yadav', instructorEmail: 'prof.yadav@school.edu', room: 'AI Lab 2',    attended: 21, total: 22, credits: 3 },
-  { id: 'sub-6', code: 'CS306', name: 'Web & Cloud Architecture',       instructor: 'Prof. Sarah Chen',   instructorEmail: 'sarah.chen@school.edu', room: 'Cloud Studio', attended: 16, total: 20, credits: 3 },
-];
-
-const SEED_STUDENTS: StudentItem[] = [
-  { id: 'stu-1',  rollNo: '2026-CS-0455', name: 'Nikhil Yadav',    email: 'nikhil.yadav@student.edu', avatarColor: 'from-indigo-500 to-purple-600',  status: 'present', notes: 'Regular attendee' },
-  { id: 'stu-2',  rollNo: '2026-CS-0401', name: 'Aarav Patel',     email: 'aarav.patel@school.edu',   avatarColor: 'from-blue-500 to-cyan-500',      status: 'present' },
-  { id: 'stu-3',  rollNo: '2026-CS-0412', name: 'Ananya Sharma',   email: 'ananya.s@school.edu',      avatarColor: 'from-pink-500 to-rose-500',      status: 'present' },
-  { id: 'stu-4',  rollNo: '2026-CS-0428', name: 'Rohan Verma',     email: 'rohan.v@school.edu',       avatarColor: 'from-amber-500 to-orange-500',   status: 'late',    notes: 'Arrived 15m late' },
-  { id: 'stu-5',  rollNo: '2026-CS-0433', name: 'Priya Nair',      email: 'priya.n@school.edu',       avatarColor: 'from-emerald-500 to-teal-500',   status: 'present' },
-  { id: 'stu-6',  rollNo: '2026-CS-0447', name: 'Kabir Mehta',     email: 'kabir.m@school.edu',       avatarColor: 'from-red-500 to-rose-600',       status: 'absent' },
-  { id: 'stu-7',  rollNo: '2026-CS-0460', name: 'Sneha Gupta',     email: 'sneha.g@school.edu',       avatarColor: 'from-purple-500 to-indigo-500',  status: 'present' },
-  { id: 'stu-8',  rollNo: '2026-CS-0472', name: 'Ishaan Malhotra', email: 'ishaan.m@school.edu',      avatarColor: 'from-sky-500 to-blue-600',       status: 'excused', notes: 'Medical Leave' },
-  { id: 'stu-9',  rollNo: '2026-CS-0485', name: 'Riya Sen',        email: 'riya.sen@school.edu',      avatarColor: 'from-fuchsia-500 to-pink-500',   status: 'present' },
-  { id: 'stu-10', rollNo: '2026-CS-0491', name: 'Devansh Joshi',   email: 'devansh.j@school.edu',     avatarColor: 'from-cyan-500 to-blue-500',      status: 'present' },
-  { id: 'stu-11', rollNo: '2026-CS-0504', name: 'Meera Kulkarni',  email: 'meera.k@school.edu',       avatarColor: 'from-rose-500 to-red-500',       status: 'absent' },
-  { id: 'stu-12', rollNo: '2026-CS-0518', name: 'Siddharth Rao',   email: 'sid.rao@school.edu',       avatarColor: 'from-teal-500 to-emerald-500',   status: 'present' },
-];
-
-const SEED_TIMETABLE: TimetableItem[] = [
-  { id: 'tt-1',  day: 'Monday',    time: '09:30 AM - 10:30 AM', subjectCode: 'CS301', subjectName: 'Computer Networks',             instructor: 'Dr. Rajesh Sharma', room: 'Hall 302',       status: 'completed' },
-  { id: 'tt-2',  day: 'Monday',    time: '11:00 AM - 12:30 PM', subjectCode: 'CS302', subjectName: 'Database Systems',              instructor: 'Prof. Anita Roy',   room: 'Lab 4',          status: 'ongoing' },
-  { id: 'tt-3',  day: 'Monday',    time: '02:00 PM - 03:30 PM', subjectCode: 'CS303', subjectName: 'Operating Systems',             instructor: 'Prof. Vikram Singh',room: 'Hall 201',       status: 'upcoming' },
-  { id: 'tt-4',  day: 'Tuesday',   time: '09:30 AM - 11:00 AM', subjectCode: 'CS304', subjectName: 'Design & Analysis of Algorithms',instructor: 'Prof. Nikhil Yadav',room: 'Hall 105',      status: 'upcoming' },
-  { id: 'tt-5',  day: 'Tuesday',   time: '11:30 AM - 01:00 PM', subjectCode: 'CS305', subjectName: 'Artificial Intelligence & ML', instructor: 'Prof. Nikhil Yadav',room: 'AI Lab 2',       status: 'upcoming' },
-  { id: 'tt-6',  day: 'Wednesday', time: '10:00 AM - 11:30 AM', subjectCode: 'CS306', subjectName: 'Web & Cloud Architecture',     instructor: 'Prof. Sarah Chen',  room: 'Cloud Studio',   status: 'upcoming' },
-  { id: 'tt-7',  day: 'Wednesday', time: '01:30 PM - 03:00 PM', subjectCode: 'CS301', subjectName: 'Computer Networks Lab',        instructor: 'Dr. Rajesh Sharma', room: 'Network Lab 1',  status: 'upcoming' },
-  { id: 'tt-8',  day: 'Thursday',  time: '09:30 AM - 11:00 AM', subjectCode: 'CS302', subjectName: 'Advanced Databases Lab',       instructor: 'Prof. Anita Roy',   room: 'Lab 4',          status: 'upcoming' },
-  { id: 'tt-9',  day: 'Thursday',  time: '11:30 AM - 01:00 PM', subjectCode: 'CS303', subjectName: 'Systems Architecture',        instructor: 'Prof. Vikram Singh',room: 'Hall 201',       status: 'upcoming' },
-  { id: 'tt-10', day: 'Friday',    time: '10:00 AM - 12:00 PM', subjectCode: 'CS305', subjectName: 'AI Capstone & Seminar',       instructor: 'Prof. Nikhil Yadav',room: 'Auditorium 1',   status: 'upcoming' },
-];
-
-const SEED_NOTIFICATIONS: NotificationItem[] = [
-  { id: 'notif-1', title: 'Monthly Roll-Call Audit Notice', message: 'Monthly attendance reports for Semester 6 are now consolidated. Students under 75% threshold must meet their academic advisors before Friday.', time: '10 mins ago', type: 'alert', read: false, sender: { name: 'Dr. Rajesh Sharma', role: 'teacher', email: 'prof.sharma@school.edu' }, target: { scope: 'all' } },
-  { id: 'notif-2', title: 'Lab Session Rescheduled', message: 'Database Systems (CS302) Thursday Lab is shifted from Lab 4 to Systems Cloud Studio due to scheduled network maintenance.', time: '2 hours ago', type: 'info', read: false, sender: { name: 'Prof. Anita Roy', role: 'teacher', email: 'prof.anita@school.edu' }, target: { scope: 'all' } },
-  { id: 'notif-3', title: 'Attendance Goal Achieved', message: 'Congratulations! Your overall cumulative attendance reached 84.6%, safely meeting your 75% minimum semester requirement.', time: '1 day ago', type: 'success', read: true, sender: { name: 'AttendPulse Academic Engine', role: 'system' }, target: { scope: 'all' } },
-];
-
 // ─── DDL ─────────────────────────────────────────────────────────────────────
-const CREATE_TABLES_SQL = `
-CREATE TABLE IF NOT EXISTS ap_users (
-  id          TEXT PRIMARY KEY,
-  email       TEXT UNIQUE NOT NULL,
-  password    TEXT NOT NULL,
-  role        TEXT NOT NULL,
-  name        TEXT NOT NULL,
-  roll_no     TEXT,
-  department  TEXT,
-  semester    TEXT,
-  institution TEXT,
-  min_attendance_goal INTEGER DEFAULT 75,
-  designation TEXT
-);
-
-CREATE TABLE IF NOT EXISTS ap_subjects (
-  id               TEXT PRIMARY KEY,
-  code             TEXT UNIQUE NOT NULL,
-  name             TEXT NOT NULL,
-  instructor       TEXT,
-  instructor_email TEXT,
-  room             TEXT,
-  attended         INTEGER DEFAULT 0,
-  total            INTEGER DEFAULT 0,
-  credits          INTEGER DEFAULT 3
-);
-
-CREATE TABLE IF NOT EXISTS ap_students (
-  id           TEXT PRIMARY KEY,
-  roll_no      TEXT,
-  name         TEXT NOT NULL,
-  email        TEXT,
-  avatar_color TEXT,
-  status       TEXT DEFAULT 'present',
-  notes        TEXT,
-  sort_order   SERIAL
-);
-
-CREATE TABLE IF NOT EXISTS ap_timetable (
-  id           TEXT PRIMARY KEY,
-  day          TEXT NOT NULL,
-  time         TEXT NOT NULL,
-  subject_code TEXT,
-  subject_name TEXT,
-  instructor   TEXT,
-  room         TEXT,
-  status       TEXT DEFAULT 'upcoming',
-  sort_order   SERIAL
-);
-
-CREATE TABLE IF NOT EXISTS ap_sessions (
-  id              TEXT PRIMARY KEY,
-  date            TEXT,
-  timestamp       BIGINT,
-  subject_code    TEXT,
-  subject_name    TEXT,
-  instructor      TEXT,
-  marked_by       TEXT,
-  marked_by_email TEXT,
-  records         JSONB,
-  summary         JSONB,
-  created_at      TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS ap_notifications (
-  id          TEXT PRIMARY KEY,
-  title       TEXT,
-  message     TEXT,
-  time        TEXT,
-  type        TEXT,
-  read        BOOLEAN DEFAULT false,
-  sender      JSONB,
-  target      JSONB,
-  attachments JSONB,
-  links       JSONB,
-  created_at  TIMESTAMPTZ DEFAULT NOW()
-);
-`;
+const DDL_STATEMENTS = [
+  `CREATE TABLE IF NOT EXISTS ap_users (
+    id          TEXT PRIMARY KEY,
+    email       TEXT UNIQUE NOT NULL,
+    password    TEXT NOT NULL,
+    role        TEXT NOT NULL,
+    name        TEXT NOT NULL,
+    roll_no     TEXT,
+    department  TEXT,
+    semester    TEXT,
+    institution TEXT,
+    min_attendance_goal INTEGER DEFAULT 75,
+    designation TEXT
+  )`,
+  `CREATE TABLE IF NOT EXISTS ap_subjects (
+    id               TEXT PRIMARY KEY,
+    code             TEXT UNIQUE NOT NULL,
+    name             TEXT NOT NULL,
+    instructor       TEXT,
+    instructor_email TEXT,
+    room             TEXT,
+    attended         INTEGER DEFAULT 0,
+    total            INTEGER DEFAULT 0,
+    credits          INTEGER DEFAULT 3
+  )`,
+  `CREATE TABLE IF NOT EXISTS ap_students (
+    id           TEXT PRIMARY KEY,
+    roll_no      TEXT,
+    name         TEXT NOT NULL,
+    email        TEXT,
+    avatar_color TEXT,
+    status       TEXT DEFAULT 'present',
+    notes        TEXT,
+    sort_order   SERIAL
+  )`,
+  `CREATE TABLE IF NOT EXISTS ap_timetable (
+    id           TEXT PRIMARY KEY,
+    day          TEXT NOT NULL,
+    time         TEXT NOT NULL,
+    subject_code TEXT,
+    subject_name TEXT,
+    instructor   TEXT,
+    room         TEXT,
+    status       TEXT DEFAULT 'upcoming',
+    sort_order   SERIAL
+  )`,
+  `CREATE TABLE IF NOT EXISTS ap_sessions (
+    id              TEXT PRIMARY KEY,
+    date            TEXT,
+    timestamp       BIGINT,
+    subject_code    TEXT,
+    subject_name    TEXT,
+    instructor      TEXT,
+    marked_by       TEXT,
+    marked_by_email TEXT,
+    records         JSONB,
+    summary         JSONB,
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+  )`,
+  `CREATE TABLE IF NOT EXISTS ap_notifications (
+    id          TEXT PRIMARY KEY,
+    title       TEXT,
+    message     TEXT,
+    time        TEXT,
+    type        TEXT,
+    read        BOOLEAN DEFAULT false,
+    sender      JSONB,
+    target      JSONB,
+    attachments JSONB,
+    links       JSONB,
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+  )`
+];
 
 // ─── Row → domain object mappers ─────────────────────────────────────────────
 function rowToUser(r: any): UserAccount {
@@ -196,46 +139,31 @@ function rowToNotification(r: any): NotificationItem {
 
 // ─── PostgresStore ────────────────────────────────────────────────────────────
 export class PostgresStore {
-  private pool: Pool;
+  private sql: any;
   private ready: Promise<void>;
 
   constructor() {
     const rawUrl = process.env.DATABASE_URL || '';
     const cleanUrl = rawUrl.replace(/channel_binding=[^&]*&?/, '').replace(/[?&]$/, '');
 
-    this.pool = new Pool({
-      connectionString: cleanUrl,
-    });
+    this.sql = neon(cleanUrl);
     this.ready = this._init();
   }
 
   private async _init(): Promise<void> {
-    const client = await this.pool.connect();
     try {
-      // Create all tables
-      await client.query(CREATE_TABLES_SQL);
-
-      // Seed users if empty
-      const { rows: uRows } = await client.query('SELECT COUNT(*) AS c FROM ap_users');
-      if (parseInt(uRows[0].c, 10) === 0) {
-        for (const u of SEED_USERS) {
-          await client.query(
-            `INSERT INTO ap_users (id,email,password,role,name,roll_no,department,semester,institution,min_attendance_goal,designation)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT (id) DO NOTHING`,
-            [u.id, u.email, u.password, u.role, u.name, u.rollNo, u.department, u.semester, u.institution, u.minAttendanceGoal, u.designation]
-          );
-        }
+      for (const ddl of DDL_STATEMENTS) {
+        await this.sql.query(ddl);
       }
-
-      console.log('✅ PostgreSQL store initialized');
-    } finally {
-      client.release();
+      console.log('✅ PostgreSQL store initialized via Neon HTTP driver');
+    } catch (err) {
+      console.error('❌ Failed to initialize PostgreSQL store:', err);
     }
   }
 
-  private async q<T = any>(sql: string, params: any[] = []): Promise<T[]> {
+  private async q<T = any>(sqlText: string, params: any[] = []): Promise<T[]> {
     await this.ready;
-    const { rows } = await this.pool.query(sql, params);
+    const rows = await this.sql.query(sqlText, params);
     return rows as T[];
   }
 
@@ -258,7 +186,12 @@ export class PostgresStore {
   async addUser(user: UserAccount): Promise<UserAccount> {
     await this.q(
       `INSERT INTO ap_users (id,email,password,role,name,roll_no,department,semester,institution,min_attendance_goal,designation)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT (email) DO NOTHING`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+       ON CONFLICT (email) DO UPDATE SET
+         role = EXCLUDED.role,
+         name = EXCLUDED.name,
+         roll_no = EXCLUDED.roll_no,
+         password = EXCLUDED.password`,
       [user.id, user.email, user.password, user.role, user.name, user.rollNo,
        user.department, user.semester, user.institution, user.minAttendanceGoal, user.designation]
     );
@@ -273,6 +206,7 @@ export class PostgresStore {
       name: 'name', rollNo: 'roll_no', department: 'department',
       semester: 'semester', institution: 'institution',
       minAttendanceGoal: 'min_attendance_goal', designation: 'designation',
+      role: 'role',
     };
     for (const [key, col] of Object.entries(map)) {
       if (partial[key as keyof UserAccount] !== undefined) {
@@ -301,8 +235,14 @@ export class PostgresStore {
     const id = `sub-${Date.now()}`;
     await this.q(
       `INSERT INTO ap_subjects (id,code,name,instructor,instructor_email,room,attended,total,credits)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-      [id, subject.code, subject.name, subject.instructor, subject.instructorEmail,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       ON CONFLICT (code) DO UPDATE SET
+         name = EXCLUDED.name,
+         instructor = EXCLUDED.instructor,
+         instructor_email = EXCLUDED.instructor_email,
+         room = EXCLUDED.room,
+         credits = EXCLUDED.credits`,
+      [id, subject.code, subject.name, subject.instructor, subject.instructorEmail || null,
        subject.room, subject.attended, subject.total, subject.credits]
     );
     return { id, ...subject };
@@ -334,11 +274,17 @@ export class PostgresStore {
   }
 
   async replaceSubjects(subjects: SubjectItem[]): Promise<SubjectItem[]> {
-    await this.q('TRUNCATE TABLE ap_subjects CASCADE');
+    await this.q('DELETE FROM ap_subjects');
     for (const s of subjects) {
       await this.q(
         `INSERT INTO ap_subjects (id,code,name,instructor,instructor_email,room,attended,total,credits)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (id) DO NOTHING`,
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+         ON CONFLICT (code) DO UPDATE SET
+           name = EXCLUDED.name,
+           instructor = EXCLUDED.instructor,
+           instructor_email = EXCLUDED.instructor_email,
+           room = EXCLUDED.room,
+           credits = EXCLUDED.credits`,
         [s.id || `sub-${Date.now()}-${Math.random()}`, s.code, s.name, s.instructor, s.instructorEmail || null, s.room || 'Hall 101', s.attended || 0, s.total || 0, s.credits || 3]
       );
     }
@@ -347,7 +293,7 @@ export class PostgresStore {
 
   // ── Students ───────────────────────────────────────────────────────────────
   async getStudents(): Promise<StudentItem[]> {
-    const rows = await this.q('SELECT * FROM ap_students ORDER BY sort_order ASC');
+    const rows = await this.q('SELECT * FROM ap_students ORDER BY sort_order ASC, id ASC');
     return rows.map(rowToStudent);
   }
 
@@ -393,30 +339,20 @@ export class PostgresStore {
   }
 
   async replaceStudents(students: StudentItem[]): Promise<StudentItem[]> {
-    const client = await this.pool.connect();
-    try {
-      await client.query('BEGIN');
-      await client.query('DELETE FROM ap_students');
-      for (const s of students) {
-        await client.query(
-          `INSERT INTO ap_students (id,roll_no,name,email,avatar_color,status,notes)
-           VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-          [s.id, s.rollNo, s.name, s.email, s.avatarColor, s.status, s.notes || null]
-        );
-      }
-      await client.query('COMMIT');
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
+    await this.q('DELETE FROM ap_students');
+    for (const s of students) {
+      await this.q(
+        `INSERT INTO ap_students (id,roll_no,name,email,avatar_color,status,notes)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [s.id, s.rollNo, s.name, s.email, s.avatarColor, s.status, s.notes || null]
+      );
     }
     return this.getStudents();
   }
 
   // ── Timetable ──────────────────────────────────────────────────────────────
   async getTimetable(): Promise<TimetableItem[]> {
-    const rows = await this.q('SELECT * FROM ap_timetable ORDER BY sort_order ASC');
+    const rows = await this.q('SELECT * FROM ap_timetable ORDER BY sort_order ASC, id ASC');
     return rows.map(rowToTimetable);
   }
 
@@ -456,28 +392,18 @@ export class PostgresStore {
   }
 
   async deleteTimetableSlot(id: string): Promise<boolean> {
-    const result = await this.pool.query('DELETE FROM ap_timetable WHERE id=$1', [id]);
-    return (result.rowCount ?? 0) > 0;
+    const res = await this.sql.query('DELETE FROM ap_timetable WHERE id=$1', [id], { fullResults: true });
+    return (res.rowCount ?? 0) > 0;
   }
 
   async replaceTimetable(timetable: TimetableItem[]): Promise<TimetableItem[]> {
-    const client = await this.pool.connect();
-    try {
-      await client.query('BEGIN');
-      await client.query('DELETE FROM ap_timetable');
-      for (const tt of timetable) {
-        await client.query(
-          `INSERT INTO ap_timetable (id,day,time,subject_code,subject_name,instructor,room,status)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-          [tt.id, tt.day, tt.time, tt.subjectCode, tt.subjectName, tt.instructor, tt.room, tt.status]
-        );
-      }
-      await client.query('COMMIT');
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
+    await this.q('DELETE FROM ap_timetable');
+    for (const tt of timetable) {
+      await this.q(
+        `INSERT INTO ap_timetable (id,day,time,subject_code,subject_name,instructor,room,status)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+        [tt.id, tt.day, tt.time, tt.subjectCode, tt.subjectName, tt.instructor, tt.room, tt.status]
+      );
     }
     return this.getTimetable();
   }
@@ -539,7 +465,7 @@ export class PostgresStore {
   }
 
   async deleteNotification(id: string): Promise<boolean> {
-    const result = await this.pool.query('DELETE FROM ap_notifications WHERE id=$1', [id]);
-    return (result.rowCount ?? 0) > 0;
+    const res = await this.sql.query('DELETE FROM ap_notifications WHERE id=$1', [id], { fullResults: true });
+    return (res.rowCount ?? 0) > 0;
   }
 }

@@ -25,6 +25,30 @@ subjectsRouter.post('/', async (req: Request, res: Response) => {
   const existing = await db.getSubjectByCode(code);
   if (existing) return res.status(409).json({ error: `Subject ${code} already exists` });
   const newSubject = await db.addSubject({ code: code.toUpperCase(), name, instructor, instructorEmail, room: room || 'Hall 101', credits: Number(credits) || 3, attended: Number(attended) || 0, total: Number(total) || 0 });
+
+  // Auto-schedule slot in timetable if none exists for this subject
+  try {
+    const timetable = await db.getTimetable();
+    const hasSlot = timetable.some(t => t.subjectCode.toUpperCase() === newSubject.code.toUpperCase());
+    if (!hasSlot) {
+      const days: Array<'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday'> = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+      const times = ['09:30 AM - 10:30 AM', '11:00 AM - 12:30 PM', '02:00 PM - 03:30 PM'];
+      const slotDay = days[timetable.length % days.length];
+      const slotTime = times[timetable.length % times.length];
+      await db.addTimetableSlot({
+        day: slotDay,
+        time: slotTime,
+        subjectCode: newSubject.code.toUpperCase(),
+        subjectName: newSubject.name,
+        instructor: newSubject.instructor,
+        room: newSubject.room || 'Hall 101',
+        status: 'upcoming'
+      });
+    }
+  } catch (err) {
+    console.warn('Auto timetable slot notice:', err);
+  }
+
   res.status(201).json({ success: true, data: newSubject });
 });
 
@@ -45,6 +69,34 @@ subjectsRouter.post('/bulk-import', async (req: Request, res: Response) => {
     total: Number(s.total) || 0,
   }));
   const saved = await db.replaceSubjects(formatted);
+
+  // Auto-schedule slots in timetable for imported subjects
+  try {
+    const timetable = await db.getTimetable();
+    const days: Array<'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday'> = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    const times = ['09:30 AM - 10:30 AM', '11:00 AM - 12:30 PM', '02:00 PM - 03:30 PM'];
+    let offset = timetable.length;
+    for (const sub of formatted) {
+      const hasSlot = timetable.some(t => t.subjectCode.toUpperCase() === sub.code.toUpperCase());
+      if (!hasSlot) {
+        const slotDay = days[offset % days.length];
+        const slotTime = times[offset % times.length];
+        await db.addTimetableSlot({
+          day: slotDay,
+          time: slotTime,
+          subjectCode: sub.code.toUpperCase(),
+          subjectName: sub.name,
+          instructor: sub.instructor,
+          room: sub.room || 'Hall 101',
+          status: 'upcoming'
+        });
+        offset++;
+      }
+    }
+  } catch (err) {
+    console.warn('Auto bulk timetable sync notice:', err);
+  }
+
   res.json({ success: true, count: saved.length, data: saved });
 });
 

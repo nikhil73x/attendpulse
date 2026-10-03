@@ -44,10 +44,11 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onVerified, onSuccess, cla
   };
 
   const deriveNameFromEmail = (rawEmail: string, forRole: 'student' | 'teacher'): string => {
-    const local = rawEmail.split('@')[0];
+    const local = rawEmail.split('@')[0].replace(/^(prof\.|dr\.)/, '');
     const parts = local.split(/[._-]/).filter(Boolean);
     const capitalized = parts.map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
-    return forRole === 'teacher' ? `Prof. ${capitalized}` : capitalized;
+    const isExplicitFaculty = rawEmail.toLowerCase().startsWith('prof.') || rawEmail.toLowerCase().startsWith('dr.');
+    return (forRole === 'teacher' && isExplicitFaculty) ? `Prof. ${capitalized}` : capitalized;
   };
 
   const handlePortalChange = (portal: 'student' | 'teacher') => {
@@ -86,11 +87,11 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onVerified, onSuccess, cla
 
     const lowerEmail = effectiveEmail.toLowerCase();
     const isTeacher =
-      activePortal === 'teacher' ||
       lowerEmail.startsWith('prof.') ||
       lowerEmail.startsWith('dr.') ||
       lowerEmail.includes('teacher') ||
-      lowerEmail.includes('faculty');
+      lowerEmail.includes('faculty') ||
+      (activePortal === 'teacher' && !lowerEmail.includes('student') && !lowerEmail.startsWith('202'));
     const detectedRole: 'student' | 'teacher' = isTeacher ? 'teacher' : 'student';
 
     const effectivePassword = password || (detectedRole === 'teacher' ? 'faculty123' : 'student123');

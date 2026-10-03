@@ -1,5 +1,5 @@
 import React from 'react';
-import { UserProfile, Student } from '../../types/attendance';
+import { UserProfile, Student, SubjectAttendance, TimetableSlot } from '../../types/attendance';
 import {
   IoSchoolOutline,
   IoPeopleOutline,
@@ -15,6 +15,8 @@ import { motion } from 'framer-motion';
 interface TeacherDashboardProps {
   profile: UserProfile;
   students: Student[];
+  subjects?: SubjectAttendance[];
+  timetable?: TimetableSlot[];
   onNavigateToRegister: () => void;
   onNavigateToSchedule: () => void;
   onExportCSV: () => void;
@@ -24,6 +26,8 @@ interface TeacherDashboardProps {
 export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   profile,
   students,
+  subjects = [],
+  timetable = [],
   onNavigateToRegister,
   onNavigateToSchedule,
   onExportCSV,
@@ -33,6 +37,14 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   const presentCount = students.filter((s) => s.status === 'present').length;
   const attendanceRate = totalStudents > 0 ? (presentCount / totalStudents) * 100 : 0;
   const atRiskStudents = students.filter((s) => s.status === 'absent');
+
+  const currentDayName = (() => {
+    const d = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+    return ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].includes(d) ? d : 'Monday';
+  })();
+  const todayClasses = timetable.filter(
+    (s) => s.day?.trim().toLowerCase() === currentDayName.toLowerCase()
+  );
 
   return (
     <div className="w-full max-w-5xl mx-auto space-y-6 animate-fade-in text-inherit">
@@ -207,59 +219,71 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
         </div>
 
         <div className="space-y-3">
-          <div className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${isDark ? 'bg-white/[0.03] border-white/10' : 'bg-slate-50 border-slate-200'}`}>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-indigo-500/15 text-indigo-400">CS301</span>
-                <span className="font-semibold text-sm">Computer Networks (Batch A)</span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 font-semibold">Completed</span>
-              </div>
-              <p className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>09:30 AM - 10:30 AM &bull; Lecture Hall 302 &bull; 93% Attendance</p>
+          {todayClasses.length === 0 ? (
+            <div className={`p-6 text-center rounded-xl border ${isDark ? 'bg-white/[0.02] border-white/5 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-500'}`}>
+              <IoCalendarOutline className="text-3xl mx-auto mb-2 opacity-40 text-indigo-400" />
+              <p className="text-xs font-medium">No scheduled lectures for today ({currentDayName}).</p>
+              <button
+                type="button"
+                onClick={onNavigateToSchedule}
+                className="mt-2 text-xs text-indigo-400 hover:underline font-semibold cursor-pointer"
+              >
+                View or configure weekly timetable &rarr;
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={onNavigateToRegister}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold border ${isDark ? 'bg-white/[0.05] border-white/10 text-slate-300' : 'bg-white border-slate-300 text-slate-700'}`}
-            >
-              View Roll Call
-            </button>
-          </div>
-
-          <div className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${isDark ? 'bg-indigo-950/30 border-indigo-500/30' : 'bg-indigo-50 border-indigo-200'}`}>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-400">CS302</span>
-                <span className="font-semibold text-sm">Database Systems (Lab Practical)</span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold animate-pulse">Live Now</span>
-              </div>
-              <p className={`text-xs mt-1 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>11:00 AM - 12:30 PM &bull; Computer Lab 4 &bull; 87% Attendance</p>
-            </div>
-            <button
-              type="button"
-              onClick={onNavigateToRegister}
-              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white text-neutral-950 shadow-md"
-            >
-              Mark Session &rarr;
-            </button>
-          </div>
-
-          <div className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${isDark ? 'bg-white/[0.03] border-white/10' : 'bg-slate-50 border-slate-200'}`}>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-indigo-500/15 text-indigo-400">CS305</span>
-                <span className="font-semibold text-sm">Artificial Intelligence Specialization</span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-500/15 text-slate-400 font-medium">Upcoming</span>
-              </div>
-              <p className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>02:00 PM - 03:30 PM &bull; AI Lab 2</p>
-            </div>
-            <button
-              type="button"
-              onClick={onNavigateToRegister}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold border ${isDark ? 'bg-white/[0.05] border-white/10 text-slate-300' : 'bg-white border-slate-300 text-slate-700'}`}
-            >
-              Session Setup
-            </button>
-          </div>
+          ) : (
+            todayClasses.map((cls) => {
+              const isLive = cls.status === 'ongoing';
+              return (
+                <div
+                  key={cls.id}
+                  className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                    isLive
+                      ? isDark
+                        ? 'bg-indigo-950/30 border-indigo-500/30'
+                        : 'bg-indigo-50 border-indigo-200'
+                      : isDark
+                      ? 'bg-white/[0.03] border-white/10'
+                      : 'bg-slate-50 border-slate-200'
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-indigo-500/15 text-indigo-400">
+                        {cls.subjectCode}
+                      </span>
+                      <span className="font-semibold text-sm">{cls.subjectName}</span>
+                      {isLive ? (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold animate-pulse">
+                          Live Now
+                        </span>
+                      ) : (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-500/15 text-slate-400 font-medium">
+                          {cls.status || 'Upcoming'}
+                        </span>
+                      )}
+                    </div>
+                    <p className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                      {cls.time} &bull; Room: {cls.room} &bull; Instructor: {cls.instructor}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={onNavigateToRegister}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold border cursor-pointer transition-all ${
+                      isLive
+                        ? 'bg-white text-neutral-950 font-bold shadow-md hover:bg-neutral-100'
+                        : isDark
+                        ? 'bg-white/[0.05] border-white/10 text-slate-300 hover:bg-white/[0.1]'
+                        : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    {isLive ? 'Mark Session →' : 'View Roll Call'}
+                  </button>
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
     </div>

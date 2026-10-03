@@ -10,94 +10,82 @@ import { fileURLToPath } from "url";
 import dotenv2 from "dotenv";
 
 // server/data/pg-store.ts
-import { Pool } from "@neondatabase/serverless";
+import { neon } from "@neondatabase/serverless";
 import dotenv from "dotenv";
 dotenv.config();
-var SEED_USERS = [
-  { id: "usr-1", email: "nikhil.yadav@student.edu", password: "student123", role: "student", name: "Nikhil Yadav", rollNo: "2026-CS-0455", department: "Computer Science & Engineering", semester: "Semester 6", institution: "Apex Institute of Technology", minAttendanceGoal: 75, designation: "Student" },
-  { id: "usr-2", email: "prof.yadav@school.edu", password: "teacher123", role: "teacher", name: "Prof. Nikhil Yadav", rollNo: "FAC-CS-108", department: "Computer Science & Engineering", semester: "Department Head", institution: "Apex Institute of Technology", minAttendanceGoal: 75, designation: "Associate Professor" },
-  { id: "usr-3", email: "prof.anita@school.edu", password: "teacher123", role: "teacher", name: "Prof. Anita Roy", rollNo: "FAC-CS-102", department: "Computer Science & Engineering", semester: "Faculty", institution: "Apex Institute of Technology", minAttendanceGoal: 75, designation: "Assistant Professor" },
-  { id: "usr-4", email: "prof.sharma@school.edu", password: "teacher123", role: "teacher", name: "Dr. Rajesh Sharma", rollNo: "FAC-CS-101", department: "Computer Science & Engineering", semester: "Faculty", institution: "Apex Institute of Technology", minAttendanceGoal: 75, designation: "Professor" },
-  { id: "usr-5", email: "prof.singh@school.edu", password: "teacher123", role: "teacher", name: "Prof. Vikram Singh", rollNo: "FAC-CS-103", department: "Computer Science & Engineering", semester: "Faculty", institution: "Apex Institute of Technology", minAttendanceGoal: 75, designation: "Associate Professor" }
+var DDL_STATEMENTS = [
+  `CREATE TABLE IF NOT EXISTS ap_users (
+    id          TEXT PRIMARY KEY,
+    email       TEXT UNIQUE NOT NULL,
+    password    TEXT NOT NULL,
+    role        TEXT NOT NULL,
+    name        TEXT NOT NULL,
+    roll_no     TEXT,
+    department  TEXT,
+    semester    TEXT,
+    institution TEXT,
+    min_attendance_goal INTEGER DEFAULT 75,
+    designation TEXT
+  )`,
+  `CREATE TABLE IF NOT EXISTS ap_subjects (
+    id               TEXT PRIMARY KEY,
+    code             TEXT UNIQUE NOT NULL,
+    name             TEXT NOT NULL,
+    instructor       TEXT,
+    instructor_email TEXT,
+    room             TEXT,
+    attended         INTEGER DEFAULT 0,
+    total            INTEGER DEFAULT 0,
+    credits          INTEGER DEFAULT 3
+  )`,
+  `CREATE TABLE IF NOT EXISTS ap_students (
+    id           TEXT PRIMARY KEY,
+    roll_no      TEXT,
+    name         TEXT NOT NULL,
+    email        TEXT,
+    avatar_color TEXT,
+    status       TEXT DEFAULT 'present',
+    notes        TEXT,
+    sort_order   SERIAL
+  )`,
+  `CREATE TABLE IF NOT EXISTS ap_timetable (
+    id           TEXT PRIMARY KEY,
+    day          TEXT NOT NULL,
+    time         TEXT NOT NULL,
+    subject_code TEXT,
+    subject_name TEXT,
+    instructor   TEXT,
+    room         TEXT,
+    status       TEXT DEFAULT 'upcoming',
+    sort_order   SERIAL
+  )`,
+  `CREATE TABLE IF NOT EXISTS ap_sessions (
+    id              TEXT PRIMARY KEY,
+    date            TEXT,
+    timestamp       BIGINT,
+    subject_code    TEXT,
+    subject_name    TEXT,
+    instructor      TEXT,
+    marked_by       TEXT,
+    marked_by_email TEXT,
+    records         JSONB,
+    summary         JSONB,
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+  )`,
+  `CREATE TABLE IF NOT EXISTS ap_notifications (
+    id          TEXT PRIMARY KEY,
+    title       TEXT,
+    message     TEXT,
+    time        TEXT,
+    type        TEXT,
+    read        BOOLEAN DEFAULT false,
+    sender      JSONB,
+    target      JSONB,
+    attachments JSONB,
+    links       JSONB,
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+  )`
 ];
-var CREATE_TABLES_SQL = `
-CREATE TABLE IF NOT EXISTS ap_users (
-  id          TEXT PRIMARY KEY,
-  email       TEXT UNIQUE NOT NULL,
-  password    TEXT NOT NULL,
-  role        TEXT NOT NULL,
-  name        TEXT NOT NULL,
-  roll_no     TEXT,
-  department  TEXT,
-  semester    TEXT,
-  institution TEXT,
-  min_attendance_goal INTEGER DEFAULT 75,
-  designation TEXT
-);
-
-CREATE TABLE IF NOT EXISTS ap_subjects (
-  id               TEXT PRIMARY KEY,
-  code             TEXT UNIQUE NOT NULL,
-  name             TEXT NOT NULL,
-  instructor       TEXT,
-  instructor_email TEXT,
-  room             TEXT,
-  attended         INTEGER DEFAULT 0,
-  total            INTEGER DEFAULT 0,
-  credits          INTEGER DEFAULT 3
-);
-
-CREATE TABLE IF NOT EXISTS ap_students (
-  id           TEXT PRIMARY KEY,
-  roll_no      TEXT,
-  name         TEXT NOT NULL,
-  email        TEXT,
-  avatar_color TEXT,
-  status       TEXT DEFAULT 'present',
-  notes        TEXT,
-  sort_order   SERIAL
-);
-
-CREATE TABLE IF NOT EXISTS ap_timetable (
-  id           TEXT PRIMARY KEY,
-  day          TEXT NOT NULL,
-  time         TEXT NOT NULL,
-  subject_code TEXT,
-  subject_name TEXT,
-  instructor   TEXT,
-  room         TEXT,
-  status       TEXT DEFAULT 'upcoming',
-  sort_order   SERIAL
-);
-
-CREATE TABLE IF NOT EXISTS ap_sessions (
-  id              TEXT PRIMARY KEY,
-  date            TEXT,
-  timestamp       BIGINT,
-  subject_code    TEXT,
-  subject_name    TEXT,
-  instructor      TEXT,
-  marked_by       TEXT,
-  marked_by_email TEXT,
-  records         JSONB,
-  summary         JSONB,
-  created_at      TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS ap_notifications (
-  id          TEXT PRIMARY KEY,
-  title       TEXT,
-  message     TEXT,
-  time        TEXT,
-  type        TEXT,
-  read        BOOLEAN DEFAULT false,
-  sender      JSONB,
-  target      JSONB,
-  attachments JSONB,
-  links       JSONB,
-  created_at  TIMESTAMPTZ DEFAULT NOW()
-);
-`;
 function rowToUser(r) {
   return {
     id: r.id,
@@ -178,38 +166,27 @@ function rowToNotification(r) {
   };
 }
 var PostgresStore = class {
-  pool;
+  sql;
   ready;
   constructor() {
     const rawUrl = process.env.DATABASE_URL || "";
     const cleanUrl = rawUrl.replace(/channel_binding=[^&]*&?/, "").replace(/[?&]$/, "");
-    this.pool = new Pool({
-      connectionString: cleanUrl
-    });
+    this.sql = neon(cleanUrl);
     this.ready = this._init();
   }
   async _init() {
-    const client = await this.pool.connect();
     try {
-      await client.query(CREATE_TABLES_SQL);
-      const { rows: uRows } = await client.query("SELECT COUNT(*) AS c FROM ap_users");
-      if (parseInt(uRows[0].c, 10) === 0) {
-        for (const u of SEED_USERS) {
-          await client.query(
-            `INSERT INTO ap_users (id,email,password,role,name,roll_no,department,semester,institution,min_attendance_goal,designation)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT (id) DO NOTHING`,
-            [u.id, u.email, u.password, u.role, u.name, u.rollNo, u.department, u.semester, u.institution, u.minAttendanceGoal, u.designation]
-          );
-        }
+      for (const ddl of DDL_STATEMENTS) {
+        await this.sql.query(ddl);
       }
-      console.log("\u2705 PostgreSQL store initialized");
-    } finally {
-      client.release();
+      console.log("\u2705 PostgreSQL store initialized via Neon HTTP driver");
+    } catch (err) {
+      console.error("\u274C Failed to initialize PostgreSQL store:", err);
     }
   }
-  async q(sql, params = []) {
+  async q(sqlText, params = []) {
     await this.ready;
-    const { rows } = await this.pool.query(sql, params);
+    const rows = await this.sql.query(sqlText, params);
     return rows;
   }
   getEngineType() {
@@ -230,7 +207,12 @@ var PostgresStore = class {
   async addUser(user) {
     await this.q(
       `INSERT INTO ap_users (id,email,password,role,name,roll_no,department,semester,institution,min_attendance_goal,designation)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT (email) DO NOTHING`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+       ON CONFLICT (email) DO UPDATE SET
+         role = EXCLUDED.role,
+         name = EXCLUDED.name,
+         roll_no = EXCLUDED.roll_no,
+         password = EXCLUDED.password`,
       [
         user.id,
         user.email,
@@ -258,7 +240,8 @@ var PostgresStore = class {
       semester: "semester",
       institution: "institution",
       minAttendanceGoal: "min_attendance_goal",
-      designation: "designation"
+      designation: "designation",
+      role: "role"
     };
     for (const [key, col] of Object.entries(map)) {
       if (partial[key] !== void 0) {
@@ -284,13 +267,19 @@ var PostgresStore = class {
     const id = `sub-${Date.now()}`;
     await this.q(
       `INSERT INTO ap_subjects (id,code,name,instructor,instructor_email,room,attended,total,credits)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       ON CONFLICT (code) DO UPDATE SET
+         name = EXCLUDED.name,
+         instructor = EXCLUDED.instructor,
+         instructor_email = EXCLUDED.instructor_email,
+         room = EXCLUDED.room,
+         credits = EXCLUDED.credits`,
       [
         id,
         subject.code,
         subject.name,
         subject.instructor,
-        subject.instructorEmail,
+        subject.instructorEmail || null,
         subject.room,
         subject.attended,
         subject.total,
@@ -329,11 +318,17 @@ var PostgresStore = class {
     return rows[0] ? rowToSubject(rows[0]) : null;
   }
   async replaceSubjects(subjects) {
-    await this.q("TRUNCATE TABLE ap_subjects CASCADE");
+    await this.q("DELETE FROM ap_subjects");
     for (const s of subjects) {
       await this.q(
         `INSERT INTO ap_subjects (id,code,name,instructor,instructor_email,room,attended,total,credits)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (id) DO NOTHING`,
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+         ON CONFLICT (code) DO UPDATE SET
+           name = EXCLUDED.name,
+           instructor = EXCLUDED.instructor,
+           instructor_email = EXCLUDED.instructor_email,
+           room = EXCLUDED.room,
+           credits = EXCLUDED.credits`,
         [s.id || `sub-${Date.now()}-${Math.random()}`, s.code, s.name, s.instructor, s.instructorEmail || null, s.room || "Hall 101", s.attended || 0, s.total || 0, s.credits || 3]
       );
     }
@@ -341,7 +336,7 @@ var PostgresStore = class {
   }
   // ── Students ───────────────────────────────────────────────────────────────
   async getStudents() {
-    const rows = await this.q("SELECT * FROM ap_students ORDER BY sort_order ASC");
+    const rows = await this.q("SELECT * FROM ap_students ORDER BY sort_order ASC, id ASC");
     return rows.map(rowToStudent);
   }
   async getStudentById(id) {
@@ -393,29 +388,19 @@ var PostgresStore = class {
     return this.getStudents();
   }
   async replaceStudents(students) {
-    const client = await this.pool.connect();
-    try {
-      await client.query("BEGIN");
-      await client.query("DELETE FROM ap_students");
-      for (const s of students) {
-        await client.query(
-          `INSERT INTO ap_students (id,roll_no,name,email,avatar_color,status,notes)
-           VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-          [s.id, s.rollNo, s.name, s.email, s.avatarColor, s.status, s.notes || null]
-        );
-      }
-      await client.query("COMMIT");
-    } catch (err) {
-      await client.query("ROLLBACK");
-      throw err;
-    } finally {
-      client.release();
+    await this.q("DELETE FROM ap_students");
+    for (const s of students) {
+      await this.q(
+        `INSERT INTO ap_students (id,roll_no,name,email,avatar_color,status,notes)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [s.id, s.rollNo, s.name, s.email, s.avatarColor, s.status, s.notes || null]
+      );
     }
     return this.getStudents();
   }
   // ── Timetable ──────────────────────────────────────────────────────────────
   async getTimetable() {
-    const rows = await this.q("SELECT * FROM ap_timetable ORDER BY sort_order ASC");
+    const rows = await this.q("SELECT * FROM ap_timetable ORDER BY sort_order ASC, id ASC");
     return rows.map(rowToTimetable);
   }
   async addTimetableSlot(slot) {
@@ -456,27 +441,17 @@ var PostgresStore = class {
     return rows[0] ? rowToTimetable(rows[0]) : null;
   }
   async deleteTimetableSlot(id) {
-    const result = await this.pool.query("DELETE FROM ap_timetable WHERE id=$1", [id]);
-    return (result.rowCount ?? 0) > 0;
+    const res = await this.sql.query("DELETE FROM ap_timetable WHERE id=$1", [id], { fullResults: true });
+    return (res.rowCount ?? 0) > 0;
   }
   async replaceTimetable(timetable) {
-    const client = await this.pool.connect();
-    try {
-      await client.query("BEGIN");
-      await client.query("DELETE FROM ap_timetable");
-      for (const tt of timetable) {
-        await client.query(
-          `INSERT INTO ap_timetable (id,day,time,subject_code,subject_name,instructor,room,status)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-          [tt.id, tt.day, tt.time, tt.subjectCode, tt.subjectName, tt.instructor, tt.room, tt.status]
-        );
-      }
-      await client.query("COMMIT");
-    } catch (err) {
-      await client.query("ROLLBACK");
-      throw err;
-    } finally {
-      client.release();
+    await this.q("DELETE FROM ap_timetable");
+    for (const tt of timetable) {
+      await this.q(
+        `INSERT INTO ap_timetable (id,day,time,subject_code,subject_name,instructor,room,status)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+        [tt.id, tt.day, tt.time, tt.subjectCode, tt.subjectName, tt.instructor, tt.room, tt.status]
+      );
     }
     return this.getTimetable();
   }
@@ -545,8 +520,8 @@ var PostgresStore = class {
     return rows[0] ? rowToNotification(rows[0]) : null;
   }
   async deleteNotification(id) {
-    const result = await this.pool.query("DELETE FROM ap_notifications WHERE id=$1", [id]);
-    return (result.rowCount ?? 0) > 0;
+    const res = await this.sql.query("DELETE FROM ap_notifications WHERE id=$1", [id], { fullResults: true });
+    return (res.rowCount ?? 0) > 0;
   }
 };
 
@@ -767,7 +742,17 @@ authRouter.post("/login", async (req, res) => {
   if (["prof", "professor", "faculty", "teacher", "yadav"].includes(cleanEmail)) cleanEmail = "prof.yadav@school.edu";
   else if (["student", "nikhil"].includes(cleanEmail)) cleanEmail = "nikhil.yadav@student.edu";
   const user = await db.getUserByEmail(cleanEmail);
+  const allStudents = await db.getStudents();
+  const matchedStudent = allStudents.find(
+    (s) => s.email && s.email.trim().toLowerCase() === cleanEmail || s.name && s.name.trim().toLowerCase() === cleanEmail || s.rollNo && s.rollNo.trim().toLowerCase() === cleanEmail
+  );
   if (user) {
+    if (matchedStudent && user.role !== "student") {
+      user.role = "student";
+      user.name = matchedStudent.name;
+      user.rollNo = matchedStudent.rollNo;
+      await db.updateUserProfile(user.email, { role: "student", name: matchedStudent.name, rollNo: matchedStudent.rollNo });
+    }
     const validPasswords = [user.password, "teacher123", "faculty123", "student123", "demo1234", "prof123", "password", ""];
     if (password && !validPasswords.includes(password)) {
       return res.status(401).json({ error: "Invalid password credentials" });
@@ -778,8 +763,6 @@ authRouter.post("/login", async (req, res) => {
       user: { id: user.id, email: user.email, name: user.name, role: user.role, rollNo: user.rollNo, department: user.department, semester: user.semester, institution: user.institution, minAttendanceGoal: user.minAttendanceGoal, designation: user.designation }
     });
   }
-  const allStudents = await db.getStudents();
-  const matchedStudent = allStudents.find((s) => s.email?.toLowerCase() === cleanEmail);
   const explicitRole = req.body.role;
   let role = "student";
   let name = "";
@@ -788,12 +771,12 @@ authRouter.post("/login", async (req, res) => {
     role = "student";
     name = matchedStudent.name;
     rollNo = matchedStudent.rollNo;
-  } else if (explicitRole === "teacher" || cleanEmail.startsWith("prof.") || cleanEmail.startsWith("dr.") || cleanEmail.includes("teacher") || cleanEmail.includes("faculty")) {
+  } else if (cleanEmail.startsWith("prof.") || cleanEmail.startsWith("dr.") || cleanEmail.includes("teacher") || cleanEmail.includes("faculty") || explicitRole === "teacher" && !cleanEmail.includes("student")) {
     role = "teacher";
     const local = cleanEmail.split("@")[0].replace(/^(prof\.|dr\.)/, "");
     const parts = local.split(/[._-]/).filter(Boolean);
     const capitalized = parts.map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ");
-    name = `Prof. ${capitalized}`;
+    name = cleanEmail.startsWith("prof.") || cleanEmail.startsWith("dr.") ? `Prof. ${capitalized}` : capitalized;
     rollNo = `FAC-CS-${Math.floor(100 + Math.random() * 900)}`;
   } else {
     role = "student";
@@ -804,7 +787,7 @@ authRouter.post("/login", async (req, res) => {
   }
   const newUser = {
     id: `usr-${Date.now()}`,
-    email: cleanEmail,
+    email: cleanEmail.includes("@") ? cleanEmail : matchedStudent?.email || `${cleanEmail.replace(/\s+/g, ".")}@school.edu`,
     password: password || "demo1234",
     role,
     name,
@@ -817,7 +800,6 @@ authRouter.post("/login", async (req, res) => {
   };
   await db.addUser(newUser);
   return res.json({ success: true, token: `sess_${newUser.id}_${Date.now()}`, user: newUser });
-  return res.status(401).json({ error: "Account not recognized. Please use registered school credentials." });
 });
 authRouter.get("/me", async (req, res) => {
   const email = req.query.email || "";
@@ -853,6 +835,27 @@ subjectsRouter.post("/", async (req, res) => {
   const existing = await db.getSubjectByCode(code);
   if (existing) return res.status(409).json({ error: `Subject ${code} already exists` });
   const newSubject = await db.addSubject({ code: code.toUpperCase(), name, instructor, instructorEmail, room: room || "Hall 101", credits: Number(credits) || 3, attended: Number(attended) || 0, total: Number(total) || 0 });
+  try {
+    const timetable = await db.getTimetable();
+    const hasSlot = timetable.some((t) => t.subjectCode.toUpperCase() === newSubject.code.toUpperCase());
+    if (!hasSlot) {
+      const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+      const times = ["09:30 AM - 10:30 AM", "11:00 AM - 12:30 PM", "02:00 PM - 03:30 PM"];
+      const slotDay = days[timetable.length % days.length];
+      const slotTime = times[timetable.length % times.length];
+      await db.addTimetableSlot({
+        day: slotDay,
+        time: slotTime,
+        subjectCode: newSubject.code.toUpperCase(),
+        subjectName: newSubject.name,
+        instructor: newSubject.instructor,
+        room: newSubject.room || "Hall 101",
+        status: "upcoming"
+      });
+    }
+  } catch (err) {
+    console.warn("Auto timetable slot notice:", err);
+  }
   res.status(201).json({ success: true, data: newSubject });
 });
 subjectsRouter.post("/bulk-import", async (req, res) => {
@@ -872,6 +875,31 @@ subjectsRouter.post("/bulk-import", async (req, res) => {
     total: Number(s.total) || 0
   }));
   const saved = await db.replaceSubjects(formatted);
+  try {
+    const timetable = await db.getTimetable();
+    const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+    const times = ["09:30 AM - 10:30 AM", "11:00 AM - 12:30 PM", "02:00 PM - 03:30 PM"];
+    let offset = timetable.length;
+    for (const sub of formatted) {
+      const hasSlot = timetable.some((t) => t.subjectCode.toUpperCase() === sub.code.toUpperCase());
+      if (!hasSlot) {
+        const slotDay = days[offset % days.length];
+        const slotTime = times[offset % times.length];
+        await db.addTimetableSlot({
+          day: slotDay,
+          time: slotTime,
+          subjectCode: sub.code.toUpperCase(),
+          subjectName: sub.name,
+          instructor: sub.instructor,
+          room: sub.room || "Hall 101",
+          status: "upcoming"
+        });
+        offset++;
+      }
+    }
+  } catch (err) {
+    console.warn("Auto bulk timetable sync notice:", err);
+  }
   res.json({ success: true, count: saved.length, data: saved });
 });
 subjectsRouter.put("/:id", async (req, res) => {
