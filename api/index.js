@@ -181,12 +181,14 @@ var PostgresStore = class {
   pool;
   ready;
   constructor() {
+    const rawUrl = process.env.DATABASE_URL || "";
+    const cleanUrl = rawUrl.replace(/channel_binding=[^&]*&?/, "").replace(/[?&]$/, "");
     this.pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false,
+      connectionString: cleanUrl,
+      ssl: cleanUrl ? { rejectUnauthorized: false } : false,
       max: 10,
       idleTimeoutMillis: 3e4,
-      connectionTimeoutMillis: 5e3
+      connectionTimeoutMillis: 15e3
     });
     this.ready = this._init();
   }

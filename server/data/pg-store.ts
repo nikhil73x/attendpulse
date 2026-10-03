@@ -200,14 +200,17 @@ export class PostgresStore {
   private ready: Promise<void>;
 
   constructor() {
+    const rawUrl = process.env.DATABASE_URL || '';
+    const cleanUrl = rawUrl.replace(/channel_binding=[^&]*&?/, '').replace(/[?&]$/, '');
+
     this.pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: process.env.DATABASE_URL
+      connectionString: cleanUrl,
+      ssl: cleanUrl
         ? { rejectUnauthorized: false }
         : false,
       max: 10,
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 5000,
+      connectionTimeoutMillis: 15000,
     });
     this.ready = this._init();
   }
