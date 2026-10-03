@@ -339,6 +339,18 @@ export class PostgresStore {
     return rows[0] ? rowToSubject(rows[0]) : null;
   }
 
+  async replaceSubjects(subjects: SubjectItem[]): Promise<SubjectItem[]> {
+    await this.q('TRUNCATE TABLE ap_subjects CASCADE');
+    for (const s of subjects) {
+      await this.q(
+        `INSERT INTO ap_subjects (id,code,name,instructor,instructor_email,room,attended,total,credits)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (id) DO NOTHING`,
+        [s.id || `sub-${Date.now()}-${Math.random()}`, s.code, s.name, s.instructor, s.instructorEmail || null, s.room || 'Hall 101', s.attended || 0, s.total || 0, s.credits || 3]
+      );
+    }
+    return this.getSubjects();
+  }
+
   // ── Students ───────────────────────────────────────────────────────────────
   async getStudents(): Promise<StudentItem[]> {
     const rows = await this.q('SELECT * FROM ap_students ORDER BY sort_order ASC');

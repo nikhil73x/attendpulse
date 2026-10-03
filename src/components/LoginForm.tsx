@@ -88,9 +88,9 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onVerified, onSuccess, cla
     const isTeacher =
       activePortal === 'teacher' ||
       lowerEmail.startsWith('prof.') ||
+      lowerEmail.startsWith('dr.') ||
       lowerEmail.includes('teacher') ||
-      lowerEmail.includes('faculty') ||
-      lowerEmail.includes('@school.edu');
+      lowerEmail.includes('faculty');
     const detectedRole: 'student' | 'teacher' = isTeacher ? 'teacher' : 'student';
 
     const effectivePassword = password || (detectedRole === 'teacher' ? 'faculty123' : 'student123');
@@ -99,7 +99,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onVerified, onSuccess, cla
 
     try {
       // 1. Attempt API server authentication
-      const res = await api.login(effectiveEmail, effectivePassword);
+      const res = await api.login(effectiveEmail, effectivePassword, detectedRole);
       if (res?.success && res.user) {
         setIsLoading(false);
         setIsSuccess(true);

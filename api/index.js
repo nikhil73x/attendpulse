@@ -332,6 +332,17 @@ var PostgresStore = class {
     const rows = await this.q("SELECT * FROM ap_subjects WHERE id=$1", [id]);
     return rows[0] ? rowToSubject(rows[0]) : null;
   }
+  async replaceSubjects(subjects) {
+    await this.q("TRUNCATE TABLE ap_subjects CASCADE");
+    for (const s of subjects) {
+      await this.q(
+        `INSERT INTO ap_subjects (id,code,name,instructor,instructor_email,room,attended,total,credits)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (id) DO NOTHING`,
+        [s.id || `sub-${Date.now()}-${Math.random()}`, s.code, s.name, s.instructor, s.instructorEmail || null, s.room || "Hall 101", s.attended || 0, s.total || 0, s.credits || 3]
+      );
+    }
+    return this.getSubjects();
+  }
   // ── Students ───────────────────────────────────────────────────────────────
   async getStudents() {
     const rows = await this.q("SELECT * FROM ap_students ORDER BY sort_order ASC");
@@ -634,6 +645,11 @@ var FileStore = class {
     this._save();
     return s;
   }
+  async replaceSubjects(subjects) {
+    this.data.subjects = subjects;
+    this._save();
+    return subjects;
+  }
   // Students
   async getStudents() {
     return this.data.students;
@@ -766,30 +782,45 @@ authRouter.post("/login", async (req, res) => {
       user: { id: user.id, email: user.email, name: user.name, role: user.role, rollNo: user.rollNo, department: user.department, semester: user.semester, institution: user.institution, minAttendanceGoal: user.minAttendanceGoal, designation: user.designation }
     });
   }
-  const isSchool = cleanEmail.includes("@school.edu") || cleanEmail.includes("@student.edu");
-  if (isSchool || cleanEmail.includes("prof") || cleanEmail.includes("student")) {
-    const isTeacher = cleanEmail.startsWith("prof.") || cleanEmail.includes("teacher") || cleanEmail.includes("@school.edu");
-    const local = cleanEmail.split("@")[0];
+  const allStudents = await db.getStudents();
+  const matchedStudent = allStudents.find((s) => s.email?.toLowerCase() === cleanEmail);
+  const explicitRole = req.body.role;
+  let role = "student";
+  let name = "";
+  let rollNo = "";
+  if (matchedStudent) {
+    role = "student";
+    name = matchedStudent.name;
+    rollNo = matchedStudent.rollNo;
+  } else if (explicitRole === "teacher" || cleanEmail.startsWith("prof.") || cleanEmail.startsWith("dr.") || cleanEmail.includes("teacher") || cleanEmail.includes("faculty")) {
+    role = "teacher";
+    const local = cleanEmail.split("@")[0].replace(/^(prof\.|dr\.)/, "");
     const parts = local.split(/[._-]/).filter(Boolean);
     const capitalized = parts.map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ");
-    const name = isTeacher ? `Prof. ${capitalized}` : capitalized;
-    const role = isTeacher ? "teacher" : "student";
-    const newUser = {
-      id: `usr-${Date.now()}`,
-      email: cleanEmail,
-      password: password || "demo1234",
-      role,
-      name,
-      rollNo: role === "teacher" ? `FAC-CS-${Math.floor(100 + Math.random() * 900)}` : `2026-CS-${Math.floor(1e3 + Math.random() * 9e3)}`,
-      department: "Computer Science & Engineering",
-      semester: role === "teacher" ? "Faculty" : "Semester 6",
-      institution: "Apex Institute of Technology",
-      minAttendanceGoal: 75,
-      designation: role === "teacher" ? "Associate Professor" : "Student"
-    };
-    await db.addUser(newUser);
-    return res.json({ success: true, token: `sess_${newUser.id}_${Date.now()}`, user: newUser });
+    name = `Prof. ${capitalized}`;
+    rollNo = `FAC-CS-${Math.floor(100 + Math.random() * 900)}`;
+  } else {
+    role = "student";
+    const local = cleanEmail.split("@")[0];
+    const parts = local.split(/[._-]/).filter(Boolean);
+    name = parts.map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ");
+    rollNo = `2026-CS-${Math.floor(1e3 + Math.random() * 9e3)}`;
   }
+  const newUser = {
+    id: `usr-${Date.now()}`,
+    email: cleanEmail,
+    password: password || "demo1234",
+    role,
+    name,
+    rollNo,
+    department: "Computer Science & Engineering",
+    semester: role === "teacher" ? "Faculty" : "Semester 6",
+    institution: "Apex Institute of Technology",
+    minAttendanceGoal: 75,
+    designation: role === "teacher" ? "Associate Professor" : "Student"
+  };
+  await db.addUser(newUser);
+  return res.json({ success: true, token: `sess_${newUser.id}_${Date.now()}`, user: newUser });
   return res.status(401).json({ error: "Account not recognized. Please use registered school credentials." });
 });
 authRouter.get("/me", async (req, res) => {
@@ -827,6 +858,25 @@ subjectsRouter.post("/", async (req, res) => {
   if (existing) return res.status(409).json({ error: `Subject ${code} already exists` });
   const newSubject = await db.addSubject({ code: code.toUpperCase(), name, instructor, instructorEmail, room: room || "Hall 101", credits: Number(credits) || 3, attended: Number(attended) || 0, total: Number(total) || 0 });
   res.status(201).json({ success: true, data: newSubject });
+});
+subjectsRouter.post("/bulk-import", async (req, res) => {
+  const { subjects: rawSubjects } = req.body;
+  if (!Array.isArray(rawSubjects) || rawSubjects.length === 0) {
+    return res.status(400).json({ error: "Array of subjects required" });
+  }
+  const formatted = rawSubjects.map((s, idx) => ({
+    id: s.id || `sub-${Date.now()}-${idx}`,
+    code: (s.code || "").toUpperCase(),
+    name: s.name || "Unnamed Course",
+    instructor: s.instructor || "Faculty Incharge",
+    instructorEmail: s.instructorEmail || null,
+    room: s.room || "Hall 101",
+    credits: Number(s.credits) || 3,
+    attended: Number(s.attended) || 0,
+    total: Number(s.total) || 0
+  }));
+  const saved = await db.replaceSubjects(formatted);
+  res.json({ success: true, count: saved.length, data: saved });
 });
 subjectsRouter.put("/:id", async (req, res) => {
   const updated = await db.updateSubject(String(req.params.id), req.body);

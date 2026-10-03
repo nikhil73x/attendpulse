@@ -183,6 +183,7 @@ class FileStore {
     if (!s) return null;
     Object.assign(s, p); this._save(); return s;
   }
+  async replaceSubjects(subjects: SubjectItem[])       { this.data.subjects = subjects; this._save(); return subjects; }
 
   // Students
   async getStudents()                                  { return this.data.students; }

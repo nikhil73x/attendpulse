@@ -26,35 +26,58 @@ authRouter.post('/login', async (req: Request, res: Response) => {
     });
   }
 
-  // Dynamic school email pattern — auto-register
-  const isSchool = cleanEmail.includes('@school.edu') || cleanEmail.includes('@student.edu');
-  if (isSchool || cleanEmail.includes('prof') || cleanEmail.includes('student')) {
-    const isTeacher = cleanEmail.startsWith('prof.') || cleanEmail.includes('teacher') || cleanEmail.includes('@school.edu');
-    const local = cleanEmail.split('@')[0];
+  // Check if student exists in the students roster table
+  const allStudents = await db.getStudents();
+  const matchedStudent = allStudents.find(s => s.email?.toLowerCase() === cleanEmail);
+
+  const explicitRole = req.body.role as 'student' | 'teacher' | undefined;
+  
+  let role: 'student' | 'teacher' = 'student';
+  let name = '';
+  let rollNo = '';
+
+  if (matchedStudent) {
+    role = 'student';
+    name = matchedStudent.name;
+    rollNo = matchedStudent.rollNo;
+  } else if (
+    explicitRole === 'teacher' ||
+    cleanEmail.startsWith('prof.') ||
+    cleanEmail.startsWith('dr.') ||
+    cleanEmail.includes('teacher') ||
+    cleanEmail.includes('faculty')
+  ) {
+    role = 'teacher';
+    const local = cleanEmail.split('@')[0].replace(/^(prof\.|dr\.)/, '');
     const parts = local.split(/[._-]/).filter(Boolean);
     const capitalized = parts.map((p: string) => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
-    const name = isTeacher ? `Prof. ${capitalized}` : capitalized;
-    const role = isTeacher ? 'teacher' : 'student';
-
-    const newUser = {
-      id: `usr-${Date.now()}`,
-      email: cleanEmail,
-      password: password || 'demo1234',
-      role: role as 'student' | 'teacher',
-      name,
-      rollNo: role === 'teacher' ? `FAC-CS-${Math.floor(100 + Math.random() * 900)}` : `2026-CS-${Math.floor(1000 + Math.random() * 9000)}`,
-      department: 'Computer Science & Engineering',
-      semester: role === 'teacher' ? 'Faculty' : 'Semester 6',
-      institution: 'Apex Institute of Technology',
-      minAttendanceGoal: 75,
-      designation: role === 'teacher' ? 'Associate Professor' : 'Student',
-    };
-
-    // Persist new dynamic user
-    await db.addUser(newUser);
-
-    return res.json({ success: true, token: `sess_${newUser.id}_${Date.now()}`, user: newUser });
+    name = `Prof. ${capitalized}`;
+    rollNo = `FAC-CS-${Math.floor(100 + Math.random() * 900)}`;
+  } else {
+    role = 'student';
+    const local = cleanEmail.split('@')[0];
+    const parts = local.split(/[._-]/).filter(Boolean);
+    name = parts.map((p: string) => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+    rollNo = `2026-CS-${Math.floor(1000 + Math.random() * 9000)}`;
   }
+
+  const newUser = {
+    id: `usr-${Date.now()}`,
+    email: cleanEmail,
+    password: password || 'demo1234',
+    role,
+    name,
+    rollNo,
+    department: 'Computer Science & Engineering',
+    semester: role === 'teacher' ? 'Faculty' : 'Semester 6',
+    institution: 'Apex Institute of Technology',
+    minAttendanceGoal: 75,
+    designation: role === 'teacher' ? 'Associate Professor' : 'Student',
+  };
+
+  await db.addUser(newUser);
+
+  return res.json({ success: true, token: `sess_${newUser.id}_${Date.now()}`, user: newUser });
 
   return res.status(401).json({ error: 'Account not recognized. Please use registered school credentials.' });
 });

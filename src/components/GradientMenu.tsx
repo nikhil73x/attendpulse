@@ -280,6 +280,7 @@ export function GradientMenu({
           updated.push(item);
         }
       }
+      api.bulkImportSubjects(updated).catch((err) => console.error('Failed to sync subjects to API:', err));
       return updated;
     });
   };
@@ -290,10 +291,15 @@ export function GradientMenu({
       id: `tt-${Date.now()}`,
     };
     setTimetable((prev) => [...prev, slot]);
+    api.addTimetableSlot(newSlot).catch((err) => console.error('Failed to save slot to API:', err));
   };
 
   const handleImportTimetable = (importedSlots: TimetableSlot[]) => {
-    setTimetable((prev) => [...prev, ...importedSlots]);
+    setTimetable((prev) => {
+      const combined = [...prev, ...importedSlots];
+      api.bulkImportTimetable({ timetable: combined }).catch((err) => console.error('Failed to sync timetable to API:', err));
+      return combined;
+    });
   };
 
   const handleMarkAllNotificationsRead = () => {

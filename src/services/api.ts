@@ -32,10 +32,10 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
 
 export const api = {
   // Auth
-  async login(email: string, password?: string) {
+  async login(email: string, password?: string, role?: 'student' | 'teacher') {
     return fetchJson<{ success: boolean; token: string; user: UserProfile }>(`${API_BASE}/auth/login`, {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, role }),
     });
   },
 
@@ -50,6 +50,17 @@ export const api = {
       : `${API_BASE}/subjects`;
     const res = await fetchJson<{ success: boolean; data: SubjectAttendance[] }>(url);
     return res.data;
+  },
+
+  async bulkImportSubjects(subjects: SubjectAttendance[]) {
+    const res = await fetchJson<{ success: boolean; count: number; data: SubjectAttendance[] }>(
+      `${API_BASE}/subjects/bulk-import`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ subjects }),
+      }
+    );
+    return res;
   },
 
   async updateSubjectAttendance(subjectId: string, attendedDelta: number, totalDelta: number) {

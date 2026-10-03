@@ -28,6 +28,26 @@ subjectsRouter.post('/', async (req: Request, res: Response) => {
   res.status(201).json({ success: true, data: newSubject });
 });
 
+subjectsRouter.post('/bulk-import', async (req: Request, res: Response) => {
+  const { subjects: rawSubjects } = req.body;
+  if (!Array.isArray(rawSubjects) || rawSubjects.length === 0) {
+    return res.status(400).json({ error: 'Array of subjects required' });
+  }
+  const formatted = rawSubjects.map((s, idx) => ({
+    id: s.id || `sub-${Date.now()}-${idx}`,
+    code: (s.code || '').toUpperCase(),
+    name: s.name || 'Unnamed Course',
+    instructor: s.instructor || 'Faculty Incharge',
+    instructorEmail: s.instructorEmail || null,
+    room: s.room || 'Hall 101',
+    credits: Number(s.credits) || 3,
+    attended: Number(s.attended) || 0,
+    total: Number(s.total) || 0,
+  }));
+  const saved = await db.replaceSubjects(formatted);
+  res.json({ success: true, count: saved.length, data: saved });
+});
+
 subjectsRouter.put('/:id', async (req: Request, res: Response) => {
   const updated = await db.updateSubject(String(req.params.id), req.body);
   if (!updated) return res.status(404).json({ error: 'Subject not found' });

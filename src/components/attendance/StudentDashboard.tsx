@@ -647,12 +647,6 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
 
           {/* Subject cards — clean, click opens modal */}
           <div className="space-y-3">
-            {subjects.length === 0 && (
-              <div className={`text-center py-12 px-4 rounded-xl border border-dashed ${isDark ? 'border-white/10 text-slate-400' : 'border-slate-300 text-slate-500'}`}>
-                <p className="text-sm font-semibold">No courses enrolled yet</p>
-                <p className="text-xs mt-1 text-slate-500">Your attendance records will appear here once courses are added or imported.</p>
-              </div>
-            )}
             {subjects.map((sub) => {
               const pct   = sub.total > 0 ? (sub.attended / sub.total) * 100 : 0;
               const badge = getStatusBadge(pct);
