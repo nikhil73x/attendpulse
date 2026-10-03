@@ -10,7 +10,7 @@ import { fileURLToPath } from "url";
 import dotenv2 from "dotenv";
 
 // server/data/pg-store.ts
-import { Pool } from "pg";
+import { Pool } from "@neondatabase/serverless";
 import dotenv from "dotenv";
 dotenv.config();
 var SEED_USERS = [
@@ -184,11 +184,7 @@ var PostgresStore = class {
     const rawUrl = process.env.DATABASE_URL || "";
     const cleanUrl = rawUrl.replace(/channel_binding=[^&]*&?/, "").replace(/[?&]$/, "");
     this.pool = new Pool({
-      connectionString: cleanUrl,
-      ssl: cleanUrl ? { rejectUnauthorized: false } : false,
-      max: 10,
-      idleTimeoutMillis: 3e4,
-      connectionTimeoutMillis: 15e3
+      connectionString: cleanUrl
     });
     this.ready = this._init();
   }

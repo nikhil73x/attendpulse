@@ -1,4 +1,4 @@
-import { Pool } from 'pg';
+import { Pool } from '@neondatabase/serverless';
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -205,12 +205,6 @@ export class PostgresStore {
 
     this.pool = new Pool({
       connectionString: cleanUrl,
-      ssl: cleanUrl
-        ? { rejectUnauthorized: false }
-        : false,
-      max: 10,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 15000,
     });
     this.ready = this._init();
   }
