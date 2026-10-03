@@ -23,9 +23,21 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
     },
   });
 
-  const data = await res.json();
+  let data: any;
+  const contentType = res.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    try {
+      data = await res.json();
+    } catch {
+      data = {};
+    }
+  } else {
+    const text = await res.text();
+    data = { error: text || `HTTP ${res.status}` };
+  }
+
   if (!res.ok) {
-    throw new Error(data.message || data.error || `HTTP ${res.status}`);
+    throw new Error(data?.message || data?.error || `HTTP ${res.status}`);
   }
   return data;
 }

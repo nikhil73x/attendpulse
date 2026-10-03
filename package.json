@@ -4,10 +4,9 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "start": "tsx server/index.ts",
-    "server": "tsx server/index.ts",
-    "server:prod": "tsx server/index.ts",
+    "dev": "concurrently -k -p \"[{name}]\" -n \"APP,API\" -c \"cyan.bold,green.bold\" \"vite\" \"tsx watch server/index.ts\"",
+    "dev:client": "vite",
+    "dev:server": "tsx watch server/index.ts",
     "dev:all": "concurrently -k -p \"[{name}]\" -n \"APP,API\" -c \"cyan.bold,green.bold\" \"vite\" \"tsx watch server/index.ts\"",
     "build:api": "esbuild server/index.ts --bundle --platform=node --format=esm --outfile=api/index.js --packages=external",
     "build": "tsc && vite build && npm run build:api",
