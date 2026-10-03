@@ -96,7 +96,17 @@ export function GradientMenu({
   const [subjects, setSubjects] = useState<SubjectAttendance[]>(() => {
     const saved = localStorage.getItem('attendance_subjects');
     if (saved) {
-      try { return JSON.parse(saved); } catch {}
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          // Purge stale mock data if present
+          if (parsed.some((s: any) => s.code === 'CS301' && s.instructor === 'Dr. Rajesh Sharma')) {
+            localStorage.removeItem('attendance_subjects');
+            return [];
+          }
+          return parsed;
+        }
+      } catch {}
     }
     return initialSubjects;
   });
@@ -104,7 +114,16 @@ export function GradientMenu({
   const [students, setStudents] = useState<Student[]>(() => {
     const saved = localStorage.getItem('attendance_students');
     if (saved) {
-      try { return JSON.parse(saved); } catch {}
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          if (parsed.some((s: any) => s.rollNo === '2026-CS-0455' && s.name === 'Nikhil Yadav')) {
+            localStorage.removeItem('attendance_students');
+            return [];
+          }
+          return parsed;
+        }
+      } catch {}
     }
     return initialStudents;
   });
@@ -112,7 +131,16 @@ export function GradientMenu({
   const [timetable, setTimetable] = useState<TimetableSlot[]>(() => {
     const saved = localStorage.getItem('attendance_timetable');
     if (saved) {
-      try { return JSON.parse(saved); } catch {}
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          if (parsed.some((t: any) => t.subjectCode === 'CS301')) {
+            localStorage.removeItem('attendance_timetable');
+            return [];
+          }
+          return parsed;
+        }
+      } catch {}
     }
     return initialTimetable;
   });
@@ -120,7 +148,16 @@ export function GradientMenu({
   const [notifications, setNotifications] = useState<AttendanceNotification[]>(() => {
     const saved = localStorage.getItem('attendance_notifications');
     if (saved) {
-      try { return JSON.parse(saved); } catch {}
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          if (parsed.some((n: any) => n.id === 'notif-1')) {
+            localStorage.removeItem('attendance_notifications');
+            return [];
+          }
+          return parsed;
+        }
+      } catch {}
     }
     return initialNotifications;
   });
@@ -159,19 +196,19 @@ export function GradientMenu({
     let active = true;
 
     api.getSubjects().then((data) => {
-      if (active && data && data.length > 0) setSubjects(data);
+      if (active && Array.isArray(data)) setSubjects(data);
     }).catch(() => {});
 
     api.getStudents().then((data) => {
-      if (active && data && data.length > 0) setStudents(data);
+      if (active && Array.isArray(data)) setStudents(data);
     }).catch(() => {});
 
     api.getTimetable().then((data) => {
-      if (active && data && data.length > 0) setTimetable(data);
+      if (active && Array.isArray(data)) setTimetable(data);
     }).catch(() => {});
 
     api.getNotifications().then((data) => {
-      if (active && data && data.length > 0) setNotifications(data);
+      if (active && Array.isArray(data)) setNotifications(data);
     }).catch(() => {});
 
     return () => { active = false; };

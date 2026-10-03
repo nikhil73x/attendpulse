@@ -1,0 +1,8 @@
+Day,Time,Course Code,Course Name,Instructor,Room,Status
+Monday,09:30 AM - 10:30 AM,CS101,Introduction to Computer Science,Prof. Alan Turing,Hall A,completed
+Monday,11:00 AM - 12:30 PM,CS102,Data Structures & Algorithms,Prof. Donald Knuth,Hall B,upcoming
+Tuesday,09:30 AM - 11:00 AM,CS103,Computer Organization & Architecture,Dr. Grace Hopper,Lab 1,upcoming
+Tuesday,11:30 AM - 01:00 PM,CS104,Operating Systems,Prof. Linus Torvalds,Hall C,upcoming
+Wednesday,10:00 AM - 11:30 AM,CS105,Database Management Systems,Dr. Edgar Codd,Lab 2,upcoming
+Thursday,09:30 AM - 11:00 AM,CS102,Data Structures Lab,Prof. Donald Knuth,Lab 3,upcoming
+Friday,10:00 AM - 12:00 PM,CS105,Database SQL Studio,Dr. Edgar Codd,Lab 2,upcoming

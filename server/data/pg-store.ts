@@ -230,56 +230,7 @@ export class PostgresStore {
         }
       }
 
-      // Seed subjects
-      const { rows: sRows } = await client.query('SELECT COUNT(*) AS c FROM ap_subjects');
-      if (parseInt(sRows[0].c, 10) === 0) {
-        for (const s of SEED_SUBJECTS) {
-          await client.query(
-            `INSERT INTO ap_subjects (id,code,name,instructor,instructor_email,room,attended,total,credits)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (id) DO NOTHING`,
-            [s.id, s.code, s.name, s.instructor, s.instructorEmail, s.room, s.attended, s.total, s.credits]
-          );
-        }
-      }
-
-      // Seed students
-      const { rows: stRows } = await client.query('SELECT COUNT(*) AS c FROM ap_students');
-      if (parseInt(stRows[0].c, 10) === 0) {
-        for (const st of SEED_STUDENTS) {
-          await client.query(
-            `INSERT INTO ap_students (id,roll_no,name,email,avatar_color,status,notes)
-             VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (id) DO NOTHING`,
-            [st.id, st.rollNo, st.name, st.email, st.avatarColor, st.status, st.notes || null]
-          );
-        }
-      }
-
-      // Seed timetable
-      const { rows: ttRows } = await client.query('SELECT COUNT(*) AS c FROM ap_timetable');
-      if (parseInt(ttRows[0].c, 10) === 0) {
-        for (const tt of SEED_TIMETABLE) {
-          await client.query(
-            `INSERT INTO ap_timetable (id,day,time,subject_code,subject_name,instructor,room,status)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (id) DO NOTHING`,
-            [tt.id, tt.day, tt.time, tt.subjectCode, tt.subjectName, tt.instructor, tt.room, tt.status]
-          );
-        }
-      }
-
-      // Seed notifications
-      const { rows: nRows } = await client.query('SELECT COUNT(*) AS c FROM ap_notifications');
-      if (parseInt(nRows[0].c, 10) === 0) {
-        for (const n of SEED_NOTIFICATIONS) {
-          await client.query(
-            `INSERT INTO ap_notifications (id,title,message,time,type,read,sender,target)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (id) DO NOTHING`,
-            [n.id, n.title, n.message, n.time, n.type, n.read,
-             JSON.stringify(n.sender), JSON.stringify(n.target)]
-          );
-        }
-      }
-
-      console.log('✅ PostgreSQL store initialized & seeded');
+      console.log('✅ PostgreSQL store initialized');
     } finally {
       client.release();
     }

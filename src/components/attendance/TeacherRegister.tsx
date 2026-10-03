@@ -49,13 +49,7 @@ export const TeacherRegister: React.FC<TeacherRegisterProps> = ({
         label: `${s.code} - ${s.name} (${s.room})`,
       }));
     }
-    return [
-      { value: 'CS301 - Computer Networks',         label: 'CS301 - Computer Networks (Hall 302)' },
-      { value: 'CS302 - Database Systems',           label: 'CS302 - Database Systems (Lab 4)' },
-      { value: 'CS303 - Operating Systems',          label: 'CS303 - Operating Systems (Hall 201)' },
-      { value: 'CS304 - Algorithms & Complexity',    label: 'CS304 - Algorithms & Complexity (Hall 105)' },
-      { value: 'CS305 - Artificial Intelligence',    label: 'CS305 - Artificial Intelligence (AI Lab 2)' },
-    ];
+    return [];
   }, [subjects]);
 
   // Check if a subject belongs to the logged-in teacher
