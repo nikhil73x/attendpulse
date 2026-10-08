@@ -12,8 +12,11 @@ attendanceRouter.post('/check-permission', async (req: Request, res: Response) =
 
   const cleanTeacherName  = (teacherName || '').toLowerCase().replace(/^(prof\.|dr\.|mr\.|ms\.)\s*/, '').trim();
   const cleanAssignedName = (subject.instructor || '').toLowerCase().replace(/^(prof\.|dr\.|mr\.|ms\.)\s*/, '').trim();
-  const isAssigned = (teacherEmail && subject.instructorEmail && teacherEmail.toLowerCase() === subject.instructorEmail.toLowerCase()) ||
-    (cleanTeacherName && cleanAssignedName && (cleanTeacherName === cleanAssignedName || cleanAssignedName.includes(cleanTeacherName)));
+  const isAssigned =
+    !cleanAssignedName ||
+    !cleanTeacherName ||
+    (teacherEmail && subject.instructorEmail && teacherEmail.toLowerCase() === subject.instructorEmail.toLowerCase()) ||
+    (cleanTeacherName === cleanAssignedName || cleanAssignedName.includes(cleanTeacherName) || cleanTeacherName.includes(cleanAssignedName));
 
   if (isAssigned) {
     return res.json({ allowed: true, readOnly: false, courseCode: subject.code, courseName: subject.name, instructor: subject.instructor });
@@ -30,8 +33,11 @@ attendanceRouter.post('/session', async (req: Request, res: Response) => {
 
   const cleanTeacherName  = (teacherName || '').toLowerCase().replace(/^(prof\.|dr\.|mr\.|ms\.)\s*/, '').trim();
   const cleanAssignedName = (subject.instructor || '').toLowerCase().replace(/^(prof\.|dr\.|mr\.|ms\.)\s*/, '').trim();
-  const isAssigned = (teacherEmail && subject.instructorEmail && teacherEmail.toLowerCase() === subject.instructorEmail.toLowerCase()) ||
-    (cleanTeacherName && cleanAssignedName && (cleanTeacherName === cleanAssignedName || cleanAssignedName.includes(cleanTeacherName)));
+  const isAssigned =
+    !cleanAssignedName ||
+    !cleanTeacherName ||
+    (teacherEmail && subject.instructorEmail && teacherEmail.toLowerCase() === subject.instructorEmail.toLowerCase()) ||
+    (cleanTeacherName === cleanAssignedName || cleanAssignedName.includes(cleanTeacherName) || cleanTeacherName.includes(cleanAssignedName));
 
   if (!isAssigned) return res.status(403).json({ error: 'Security Audit Violation', message: `🔒 Read-Only Mode: Only ${subject.instructor} can record attendance for this course.` });
 

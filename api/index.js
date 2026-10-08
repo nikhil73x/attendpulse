@@ -507,8 +507,8 @@ var PostgresStore = class {
         time,
         notification.type,
         false,
-        JSON.stringify(notification.sender),
-        JSON.stringify(notification.target),
+        JSON.stringify(notification.sender ?? null),
+        JSON.stringify(notification.target ?? null),
         JSON.stringify(notification.attachments ?? null),
         JSON.stringify(notification.links ?? null)
       ]
@@ -1097,7 +1097,7 @@ attendanceRouter.post("/check-permission", async (req, res) => {
   if (!subject) return res.status(404).json({ error: `Course ${courseCode} not found` });
   const cleanTeacherName = (teacherName || "").toLowerCase().replace(/^(prof\.|dr\.|mr\.|ms\.)\s*/, "").trim();
   const cleanAssignedName = (subject.instructor || "").toLowerCase().replace(/^(prof\.|dr\.|mr\.|ms\.)\s*/, "").trim();
-  const isAssigned = teacherEmail && subject.instructorEmail && teacherEmail.toLowerCase() === subject.instructorEmail.toLowerCase() || cleanTeacherName && cleanAssignedName && (cleanTeacherName === cleanAssignedName || cleanAssignedName.includes(cleanTeacherName));
+  const isAssigned = !cleanAssignedName || !cleanTeacherName || teacherEmail && subject.instructorEmail && teacherEmail.toLowerCase() === subject.instructorEmail.toLowerCase() || (cleanTeacherName === cleanAssignedName || cleanAssignedName.includes(cleanTeacherName) || cleanTeacherName.includes(cleanAssignedName));
   if (isAssigned) {
     return res.json({ allowed: true, readOnly: false, courseCode: subject.code, courseName: subject.name, instructor: subject.instructor });
   }
@@ -1110,7 +1110,7 @@ attendanceRouter.post("/session", async (req, res) => {
   if (!subject) return res.status(404).json({ error: `Course ${courseCode} not found` });
   const cleanTeacherName = (teacherName || "").toLowerCase().replace(/^(prof\.|dr\.|mr\.|ms\.)\s*/, "").trim();
   const cleanAssignedName = (subject.instructor || "").toLowerCase().replace(/^(prof\.|dr\.|mr\.|ms\.)\s*/, "").trim();
-  const isAssigned = teacherEmail && subject.instructorEmail && teacherEmail.toLowerCase() === subject.instructorEmail.toLowerCase() || cleanTeacherName && cleanAssignedName && (cleanTeacherName === cleanAssignedName || cleanAssignedName.includes(cleanTeacherName));
+  const isAssigned = !cleanAssignedName || !cleanTeacherName || teacherEmail && subject.instructorEmail && teacherEmail.toLowerCase() === subject.instructorEmail.toLowerCase() || (cleanTeacherName === cleanAssignedName || cleanAssignedName.includes(cleanTeacherName) || cleanTeacherName.includes(cleanAssignedName));
   if (!isAssigned) return res.status(403).json({ error: "Security Audit Violation", message: `\u{1F512} Read-Only Mode: Only ${subject.instructor} can record attendance for this course.` });
   const total = records.length;
   let present = 0, absent = 0, late = 0, excused = 0;
@@ -1282,11 +1282,14 @@ var app = express();
 var PORT = Number(process.env.PORT) || 5e3;
 var HOST = "0.0.0.0";
 var rawFrontendUrl = process.env.FRONTEND_URL || "";
-var allowedOrigins = rawFrontendUrl ? rawFrontendUrl.split(",").map((u) => u.trim().replace(/\/$/, "")) : ["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173"];
+var allowedOrigins = rawFrontendUrl ? rawFrontendUrl.split(",").map((u) => u.trim().replace(/\/$/, "")) : ["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173", "https://attendpulse.vercel.app"];
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);
-    if (process.env.NODE_ENV !== "production" || rawFrontendUrl === "*" || allowedOrigins.includes(origin) || allowedOrigins.some((allowed) => allowed && origin.startsWith(allowed))) {
+    const isLocal = origin.startsWith("http://localhost") || origin.startsWith("http://127.0.0.1");
+    const isVercel2 = origin.endsWith(".vercel.app") || origin.includes("vercel.app");
+    const isConfigured = allowedOrigins.includes(origin) || allowedOrigins.some((allowed) => allowed && origin.startsWith(allowed));
+    if (process.env.NODE_ENV !== "production" || rawFrontendUrl === "*" || isLocal || isVercel2 || isConfigured) {
       return callback(null, true);
     }
     return callback(new Error(`CORS blocked for origin: ${origin}`));

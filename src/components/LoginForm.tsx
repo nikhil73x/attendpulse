@@ -25,9 +25,9 @@ interface LoginFormProps {
 }
 
 export const LoginForm: React.FC<LoginFormProps> = ({ onVerified, onSuccess, className = '' }) => {
-  const [activePortal, setActivePortal] = useState<'student' | 'teacher'>('student');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [activePortal, setActivePortal] = useState<'student' | 'teacher'>('teacher');
+  const [email, setEmail] = useState('prof.yadav@school.edu');
+  const [password, setPassword] = useState('faculty123');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);

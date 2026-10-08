@@ -453,7 +453,7 @@ export class PostgresStore {
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
       [id, notification.title, notification.message, time,
        notification.type, false,
-       JSON.stringify(notification.sender), JSON.stringify(notification.target),
+       JSON.stringify(notification.sender ?? null), JSON.stringify(notification.target ?? null),
        JSON.stringify(notification.attachments ?? null), JSON.stringify(notification.links ?? null)]
     );
     return { id, time, read: false, ...notification };

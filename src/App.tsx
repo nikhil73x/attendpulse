@@ -18,6 +18,9 @@ export function App() {
   };
 
   const handleLogout = () => {
+    try {
+      localStorage.removeItem('attendance_notifications');
+    } catch {}
     setIsAuthenticated(false);
   };
 

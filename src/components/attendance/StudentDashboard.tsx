@@ -28,6 +28,7 @@ interface StudentDashboardProps {
   notifications?: AttendanceNotification[];
   onNavigateToNotifications?: () => void;
   onNavigateToTimetable?: () => void;
+  onMarkNotificationRead?: (id: string) => void;
   /** Intentionally unused by StudentDashboard — attendance is teacher-owned and read-only for students */
   onUpdateSubject: (subjectId: string, attendedDelta: number, totalDelta: number) => void;
   isDark: boolean;
@@ -403,12 +404,36 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
   notifications = [],
   onNavigateToNotifications,
   onNavigateToTimetable,
+  onMarkNotificationRead,
   isDark,
   view = 'overview',
 }) => {
-  const [dismissedAnnouncementId, setDismissedAnnouncementId] = useState<string | null>(null);
+  const dismissStorageKey = `attendance_dismissed_notifs_${profile.email?.toLowerCase().trim() || profile.rollNo?.toLowerCase().trim() || 'user'}`;
+
+  const [dismissedIds, setDismissedIds] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem(dismissStorageKey);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const handleDismissAnnouncement = (id: string) => {
+    setDismissedIds((prev) => {
+      const updated = prev.includes(id) ? prev : [...prev, id];
+      try {
+        localStorage.setItem(dismissStorageKey, JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+    onMarkNotificationRead?.(id);
+  };
 
   const relevantAnnouncements = notifications.filter((notif) => {
+    // Hide if already marked as read or explicitly dismissed by this student
+    if (notif.read || dismissedIds.includes(notif.id)) return false;
+
     if (!notif.target || notif.target.scope === 'all') return true;
     const target = notif.target as any;
     const myEmail = profile.email?.toLowerCase().trim();
@@ -515,7 +540,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
       <div className="w-full max-w-5xl mx-auto space-y-6 animate-fade-in text-inherit">
         {/* Faculty Announcement Banner if present */}
         <AnimatePresence>
-          {latestAnnouncement && dismissedAnnouncementId !== latestAnnouncement.id && (
+          {latestAnnouncement && !dismissedIds.includes(latestAnnouncement.id) && (
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -551,7 +576,10 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                   {onNavigateToNotifications && (
                     <button
                       type="button"
-                      onClick={onNavigateToNotifications}
+                      onClick={() => {
+                        handleDismissAnnouncement(latestAnnouncement.id);
+                        onNavigateToNotifications();
+                      }}
                       className="text-xs font-semibold text-indigo-400 hover:text-indigo-300 underline inline-flex items-center gap-1 pt-0.5 cursor-pointer"
                     >
                       Open in Notification Center &rarr;
@@ -561,7 +589,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
               </div>
               <button
                 type="button"
-                onClick={() => setDismissedAnnouncementId(latestAnnouncement.id)}
+                onClick={() => handleDismissAnnouncement(latestAnnouncement.id)}
                 className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 cursor-pointer shrink-0 transition-colors"
                 title="Dismiss banner"
               >

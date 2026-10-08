@@ -36,6 +36,7 @@ interface NotificationsModuleProps {
     notification: Omit<AttendanceNotification, 'id' | 'time' | 'read'>
   ) => void;
   onMarkAllRead: () => void;
+  onMarkAsRead?: (id: string) => void;
   onClearAll: () => void;
   onDeleteNotification: (id: string) => void;
   isDark: boolean;
@@ -48,6 +49,7 @@ export const NotificationsModule: React.FC<NotificationsModuleProps> = ({
   isTeacher = false,
   onSendAnnouncement,
   onMarkAllRead,
+  onMarkAsRead,
   onClearAll,
   onDeleteNotification,
   isDark,
@@ -943,18 +945,35 @@ export const NotificationsModule: React.FC<NotificationsModuleProps> = ({
                   )}
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => onDeleteNotification(notif.id)}
-                  title="Delete notification"
-                  className={`p-1.5 rounded-lg opacity-60 hover:opacity-100 transition-opacity cursor-pointer ${
-                    isDark
-                      ? 'text-slate-400 hover:text-rose-400'
-                      : 'text-slate-500 hover:text-rose-600'
-                  }`}
-                >
-                  <IoTrashOutline className="text-base" />
-                </button>
+                <div className="flex items-center gap-1.5 shrink-0 self-start">
+                  {!notif.read && onMarkAsRead && (
+                    <button
+                      type="button"
+                      onClick={() => onMarkAsRead(notif.id)}
+                      title="Mark as read"
+                      className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                        isDark
+                          ? 'bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30'
+                          : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 shadow-sm'
+                      }`}
+                    >
+                      <IoCheckmarkDoneOutline className="text-sm" />
+                      <span className="hidden sm:inline">Mark Read</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => onDeleteNotification(notif.id)}
+                    title={isTeacher ? 'Delete broadcast' : 'Remove notification'}
+                    className={`p-1.5 rounded-lg opacity-60 hover:opacity-100 transition-opacity cursor-pointer ${
+                      isDark
+                        ? 'text-slate-400 hover:text-rose-400 hover:bg-rose-500/10'
+                        : 'text-slate-500 hover:text-rose-600 hover:bg-rose-50'
+                    }`}
+                  >
+                    <IoTrashOutline className="text-base" />
+                  </button>
+                </div>
               </motion.div>
             ))
           )}

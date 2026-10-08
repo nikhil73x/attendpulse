@@ -309,6 +309,22 @@ export function GradientMenu({
     ).catch(() => {});
   };
 
+  const handleMarkNotificationAsRead = (id: string) => {
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+    );
+    api.markNotificationAsRead(id).catch((err) =>
+      console.error('Failed to mark notification as read on server:', err)
+    );
+  };
+
+  const handleSignOut = () => {
+    try {
+      localStorage.removeItem('attendance_notifications');
+    } catch {}
+    onLogout?.();
+  };
+
   const handleClearAllNotifications = () => {
     setNotifications([]);
     api.clearNotifications().catch((err) => console.error('Failed to clear notifications on server:', err));
@@ -530,7 +546,7 @@ export function GradientMenu({
             <span className="hidden sm:inline">Settings</span>
           </button>
           {onLogout && (
-            <button type="button" onClick={onLogout} title="Sign Out"
+            <button type="button" onClick={handleSignOut} title="Sign Out"
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-all cursor-pointer ${
                 isDark ? 'bg-red-500/10 hover:bg-red-500/20 border-red-500/20 text-red-300' : 'bg-rose-50 hover:bg-rose-100 border-rose-200 text-rose-700 shadow-sm hover:shadow'
               }`}>
@@ -647,6 +663,7 @@ export function GradientMenu({
                     notifications={notifications}
                     onNavigateToNotifications={() => setActiveView('notifications')}
                     onNavigateToTimetable={() => setActiveView('timetable')}
+                    onMarkNotificationRead={handleMarkNotificationAsRead}
                     onUpdateSubject={handleUpdateSubject} isDark={isDark} view="overview" />}
             </motion.div>
           )}
@@ -673,6 +690,7 @@ export function GradientMenu({
                     notifications={notifications}
                     onNavigateToNotifications={() => setActiveView('notifications')}
                     onNavigateToTimetable={() => setActiveView('timetable')}
+                    onMarkNotificationRead={handleMarkNotificationAsRead}
                     onUpdateSubject={handleUpdateSubject} isDark={isDark} view="attendance" />}
             </motion.div>
           )}
@@ -710,6 +728,7 @@ export function GradientMenu({
                 isTeacher={isTeacher}
                 onSendAnnouncement={handleSendAnnouncement}
                 onMarkAllRead={handleMarkAllNotificationsRead}
+                onMarkAsRead={handleMarkNotificationAsRead}
                 onClearAll={handleClearAllNotifications}
                 onDeleteNotification={handleDeleteNotification}
                 isDark={isDark}
@@ -732,7 +751,7 @@ export function GradientMenu({
         {isSettingsOpen && (
           <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)}
             profile={profile} onUpdateProfile={(u) => setProfile((p) => ({ ...p, ...u }))}
-            theme={theme} onToggleTheme={setTheme} onLogout={onLogout} onResetData={handleResetData} />
+            theme={theme} onToggleTheme={setTheme} onLogout={handleSignOut} onResetData={handleResetData} />
         )}
       </AnimatePresence>
     </div>
